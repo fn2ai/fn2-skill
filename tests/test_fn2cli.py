@@ -36,11 +36,20 @@ class ScheduleTests(unittest.TestCase):
             self.assertEqual(sched.payload["frequency"], freq)
             self.assertEqual(sched.payload["timezone"], "UTC")
 
-    def test_market_open_is_weekday_cron_in_et(self):
+    def test_market_open_is_server_owned_offset(self):
+        # Server owns the XNYS calendar: a market phase + signed offset, not a
+        # client-hardcoded cron (which fired on holidays).
         sched = schedule.parse_when("before market open")
         self.assertEqual(sched.kind, "recurring")
-        self.assertEqual(sched.payload["cron"], "0 9 * * 1-5")
+        self.assertEqual(sched.payload["frequency"], "market_open")
+        self.assertEqual(sched.payload["offset_minutes"], -30)
         self.assertEqual(sched.payload["timezone"], "America/New_York")
+        self.assertNotIn("cron", sched.payload)
+
+    def test_market_close_is_server_owned_offset(self):
+        sched = schedule.parse_when("after close")
+        self.assertEqual(sched.payload["frequency"], "market_close")
+        self.assertEqual(sched.payload["offset_minutes"], 5)
 
     def test_time_qualified_weekdays(self):
         sched = schedule.parse_when("weekdays at 8:30am")
@@ -57,10 +66,13 @@ class ScheduleTests(unittest.TestCase):
             schedule.parse_when("cron:0 9 * *")
 
     def test_next_market_open_is_one_off(self):
+        # One-shot market run: the client names the phase + offset; the SERVER
+        # resolves the concrete next-session instant (no client-side run_at).
         sched = schedule.parse_when("before next market open")
         self.assertEqual(sched.kind, "once")
-        self.assertIn("run_at", sched.payload)
-        self.assertTrue(sched.payload["run_at"].endswith("Z"))
+        self.assertEqual(sched.payload["market_event"], "open")
+        self.assertEqual(sched.payload["offset_minutes"], -30)
+        self.assertNotIn("run_at", sched.payload)
 
     def test_iso_one_off(self):
         sched = schedule.parse_when("2026-07-22T13:00")
@@ -247,6 +259,13 @@ class ApiTests(unittest.TestCase):
         stub = _StubClient()
         api.create_agent(stub, prompt="hi")
         self.assertEqual(stub.calls[0][2]["body"], {"prompt": "hi"})
+
+    def test_create_agent_email_maps_to_verified_self_delivery(self):
+        stub = _StubClient()
+        api.create_agent(stub, prompt="hi", email=True)
+        # `email=True` → verified-account delivery flag; never a raw address.
+        self.assertEqual(stub.calls[0][2]["body"],
+                         {"prompt": "hi", "delivery": {"email": True}})
 
     def test_run_and_result_paths(self):
         stub = _StubClient()

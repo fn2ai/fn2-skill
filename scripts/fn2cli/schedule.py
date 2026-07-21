@@ -8,12 +8,13 @@ The fn2 API accepts a schedule shaped like::
 
 This module maps everyday phrasing onto exactly that. It leans on the server to
 interpret recurring cron in the given timezone, and only does local timezone
-maths for the ``run_at`` (single-run) case.
+maths for the plain ``run_at`` (single-run) case.
 
-Caveats (documented in references/scheduling.md):
-  * Market phrases assume the US equities session (09:30–16:00 America/New_York)
-    and do NOT skip market holidays or half-days.
-  * "before market open" fires at 09:00 ET (30 min before the bell).
+Market phrases are handed to the server as a market phase + signed offset
+(``frequency: market_open`` / ``market_close`` for recurring, ``market_event``
+for one-shot). The SERVER owns the XNYS calendar — holidays, early closes, and
+DST are resolved there, so a holiday-scheduled run simply does not fire. The
+client never computes a market date.
 """
 
 from __future__ import annotations
@@ -31,9 +32,11 @@ except ImportError:  # pragma: no cover - ancient runtimes only
 MARKET_TZ = "America/New_York"
 DEFAULT_TZ = "UTC"
 
-# Cron fields fired before the open / after the close, weekdays only.
-_MARKET_OPEN_CRON = "0 9 * * 1-5"   # 09:00 ET, ahead of the 09:30 bell
-_MARKET_CLOSE_CRON = "5 16 * * 1-5"  # 16:05 ET, just after the 16:00 close
+# Signed minutes relative to the session boundary the server resolves. "Before
+# the open" = -30 (a brief is ready 30 min ahead of the 09:30 bell); "after the
+# close" = +5 (just past the 16:00 close).
+MARKET_OPEN_OFFSET = -30
+MARKET_CLOSE_OFFSET = 5
 
 _NAMED_FREQUENCIES = {
     "hourly": "hourly",
@@ -109,14 +112,14 @@ def _parse_recurring(phrase: str, timezone: Optional[str]) -> Schedule:
     if "market open" in phrase or "premarket" in phrase or "pre-market" in phrase:
         tz = timezone or MARKET_TZ
         return Schedule("recurring",
-                        f"every weekday at 09:00 {tz} (before the open)",
-                        {"frequency": "custom", "cron": _MARKET_OPEN_CRON,
+                        f"every trading day, {abs(MARKET_OPEN_OFFSET)} min before the open ({tz})",
+                        {"frequency": "market_open", "offset_minutes": MARKET_OPEN_OFFSET,
                          "timezone": tz})
     if "market close" in phrase or "at close" in phrase or "after close" in phrase:
         tz = timezone or MARKET_TZ
         return Schedule("recurring",
-                        f"every weekday at 16:05 {tz} (after the close)",
-                        {"frequency": "custom", "cron": _MARKET_CLOSE_CRON,
+                        f"every trading day, {MARKET_CLOSE_OFFSET} min after the close ({tz})",
+                        {"frequency": "market_close", "offset_minutes": MARKET_CLOSE_OFFSET,
                          "timezone": tz})
 
     time_part = _extract_time(phrase)
@@ -180,13 +183,17 @@ def _parse_once(phrase: str, timezone: Optional[str]) -> Schedule:
         when = _now_utc() + delta
         return _once_from_utc(when, f"once, in {amount} {unit}")
 
-    # "next market open" -> next weekday 09:00 ET.
+    # Market one-shots: the SERVER resolves the next XNYS session (holidays,
+    # early closes, DST). The client names only the phase + signed offset, so a
+    # holiday never yields a run against a closed market.
     if "market open" in phrase or "premarket" in phrase or "pre-market" in phrase:
-        when = _next_weekday_at(9, 0, MARKET_TZ)
-        return _once_from_utc(when, "once, before the next market open (09:00 ET)")
+        return Schedule("once", "once, before the next market open (server calendar)",
+                        {"market_event": "open", "offset_minutes": MARKET_OPEN_OFFSET,
+                         "timezone": MARKET_TZ})
     if "market close" in phrase or "at close" in phrase:
-        when = _next_weekday_at(16, 5, MARKET_TZ)
-        return _once_from_utc(when, "once, after the next market close (16:05 ET)")
+        return Schedule("once", "once, after the next market close (server calendar)",
+                        {"market_event": "close", "offset_minutes": MARKET_CLOSE_OFFSET,
+                         "timezone": MARKET_TZ})
 
     tz = timezone or DEFAULT_TZ
     hm = _extract_time(phrase)

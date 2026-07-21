@@ -29,7 +29,8 @@ def get_agent(client: Client, agent_id: str) -> Dict[str, Any]:
 
 def create_agent(client: Client, *, prompt: str, name: Optional[str] = None,
                  model: Optional[str] = None, labels: Optional[List[str]] = None,
-                 schedule: Optional[Dict[str, Any]] = None) -> Dict[str, Any]:
+                 schedule: Optional[Dict[str, Any]] = None,
+                 email: bool = False) -> Dict[str, Any]:
     body: Dict[str, Any] = {"prompt": prompt}
     if name:
         body["name"] = name
@@ -39,6 +40,10 @@ def create_agent(client: Client, *, prompt: str, name: Optional[str] = None,
         body["labels"] = labels
     if schedule:
         body["schedule"] = schedule
+    if email:
+        # Deliver each completed run to the account's OWN verified email. The
+        # server resolves the recipient + honors opt-out; no address is sent.
+        body["delivery"] = {"email": True}
     return client.post(f"{_V1}/agents", body=body)
 
 

@@ -85,22 +85,34 @@ again. Accounts are capped at 10 active devices.
   "name": "NVDA overnight",
   "model": "anthropic/claude-3.5-sonnet",
   "labels": ["watchlist"],
+  "delivery": {"email": true},
   "schedule": {
-    "frequency": "custom",
-    "cron": "0 9 * * 1-5",
+    "frequency": "market_open",
+    "offset_minutes": -30,
     "timezone": "America/New_York"
   }
 }
 ```
 
 - **No `schedule`** → the agent runs once, immediately.
-- **`schedule.run_at`** (ISO 8601) → a single future run.
-- **`schedule.frequency`** (`daily` / `weekdays` / `hourly` / `custom`) →
-  recurring. `custom` requires `cron`. `timezone` is IANA (default `UTC`).
+- **`schedule.run_at`** (ISO 8601) → a single future run at an absolute time.
+- **`schedule.frequency`** (`daily` / `weekdays` / `hourly` / `weekly` /
+  `custom` / `market_open` / `market_close`) → recurring. `custom` requires
+  `cron`. `timezone` is IANA (default `UTC`, else the account's saved tz).
   Optional `ends_at` (`YYYY-MM-DD`) stops the recurrence.
+- **Market schedules** (`market_open` / `market_close`, or one-shot
+  `market_event: "open" | "close"`) take a signed `offset_minutes` (e.g. `-30`
+  = 30 min before). The **server** resolves the XNYS calendar (holidays, early
+  closes, DST) — the client never computes a market date. An invalid/unresolvable
+  market request returns `400 {"code": "market_calendar"}`.
+- **`delivery: {email: true}`** attaches on-complete email to the account's
+  **own verified address** (opt-out honored). An arbitrary recipient is never
+  accepted. Omit it to leave delivery off.
 
-Pre-flight quota is enforced: creating (or running) an agent returns `429` if
-the account is over its token budget.
+Policy parity: creation enforces the same plan/cadence, recurring-agent-count,
+and model-tier limits as the web app (`403` on violation), and pre-flight token
+quota (`429`). A per-key `allowed_models` restriction is enforced (`403
+{"code": "model_not_allowed"}`).
 
 ## Runs
 
@@ -134,5 +146,7 @@ A run object:
 ## Reading results
 
 Run results are available through `GET /agents/{id}/runs/{run_id}`
-(`fn2 result`) and in the fn2 web app. Email delivery is configured in the web
-app — it is not part of this API surface, and the skill does not send mail.
+(`fn2 result`) and in the fn2 web app. Email delivery is opt-in per agent via
+`delivery: {email: true}` on create, mapped to the account's own verified email
+(the server resolves the address and honors opt-out; no recipient is ever sent
+by the client). Additional delivery channels/rules are configured in the web app.

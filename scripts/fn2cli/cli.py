@@ -515,6 +515,7 @@ def cmd_start(args: argparse.Namespace) -> int:
     agent = api.create_agent(
         client, prompt=args.prompt, name=args.name, model=args.model,
         labels=args.label or None, schedule=payload,
+        email=getattr(args, "email", False),
     )
     if getattr(args, "json", False):
         render.emit_json(agent)
@@ -528,8 +529,9 @@ def cmd_start(args: argparse.Namespace) -> int:
         print(f"  watch it:  fn2 status {agent_id}")
     else:
         print(f"  inspect:   fn2 status {agent_id}")
-    print(f"  results:   fn2 result {agent_id} <run_id> — also in the fn2 web app,")
-    print("             where email delivery can be configured.")
+    print(f"  results:   fn2 result {agent_id} <run_id> — also in the fn2 web app.")
+    if getattr(args, "email", False):
+        print("  delivery:  emailed to your verified account address on completion.")
     return 0
 
 
@@ -701,6 +703,8 @@ def build_parser() -> argparse.ArgumentParser:
     p.add_argument("--tz", help="IANA timezone for the cadence (default UTC; "
                                 "market phrases default to America/New_York)")
     p.add_argument("--ends", metavar="YYYY-MM-DD", help="stop recurring after this date")
+    p.add_argument("--email", action="store_true",
+                   help="email each completed run to your verified account address")
 
     p = add("agents", cmd_agents, "list your agents", aliases=("list", "ls"))
     p.add_argument("--status", help="filter by status (active, paused, …)")

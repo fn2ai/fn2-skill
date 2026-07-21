@@ -70,9 +70,10 @@ python3 "$FN2" --help
 ```bash
 python3 "$FN2" start "Summarize overnight moves in NVDA and peers"        # run once, now
 python3 "$FN2" start "Pre-market brief on my watchlist" \
-    --when "before market open"                                          # every weekday 09:00 ET
+    --when "before market open"                                          # 30 min before each open (trading days only)
 python3 "$FN2" start "Daily macro digest" --when "weekdays at 7am" --tz America/New_York
 python3 "$FN2" start "One-time earnings recap" --when "before next market open"  # single future run
+python3 "$FN2" start "EOD watchlist recap" --when "market close" --email  # + email each result to your account
 
 python3 "$FN2" agents                     # list your agents
 python3 "$FN2" status                     # same overview
@@ -97,16 +98,19 @@ Add `--json` to any command for machine-readable output.
 ## Reading results
 
 Results are available via `fn2 result <agent_id> <run_id>` and in the fn2 web
-app. Email delivery is configured in the web app — the skill schedules runs;
-it does not manage delivery.
+app. Add `--email` to `start` to also deliver each completed run to your
+account's **own verified email** — the server resolves the address and honors
+your opt-out; the skill never sends a recipient. Broader delivery options (extra
+channels, per-condition rules) live in the web app.
 
 ## Scheduling vocabulary
 
 `--when` understands: `daily`, `weekdays`, `hourly`, `before market open`,
 `market close`, `weekdays at 8:30am`, `daily 16:00`, `in 2 hours`, `tomorrow at
 9am`, an ISO time like `2026-07-22T13:00`, or a raw `cron:0 9 * * 1-5`. Market
-phrases assume the US equities session and default to `America/New_York`; they
-do **not** skip market holidays. See [references/scheduling.md](references/scheduling.md).
+phrases resolve against the **exchange calendar server-side** (`America/New_York`),
+so a run **skips holidays and half-days** and lands 30 min before the open / 5 min
+after the close. See [references/scheduling.md](references/scheduling.md).
 
 ## Advanced / CI — headless credential
 
