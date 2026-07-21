@@ -114,13 +114,29 @@ and model-tier limits as the web app (`403` on violation), and pre-flight token
 quota (`429`). A per-key `allowed_models` restriction is enforced (`403
 {"code": "model_not_allowed"}`).
 
+## Reliability (optional, additive)
+
+- **Idempotency.** Send `Idempotency-Key: <opaque>` on `POST /agents` or `POST
+  /agents/{id}/run`; a retry with the same key + same body replays the first
+  response (one resource). Same key + different body → `409
+  {"code":"idempotency_key_reused"}`; still in flight → `409
+  {"code":"idempotency_in_progress"}` with `retry_after`.
+- **Wait.** `GET /agents/{id}/runs/{run_id}?wait=<0-25>` long-polls until the run
+  is terminal or the deadline passes (then `200` with the current state).
+- **Delivery state.** `?include=delivery` adds a read-only `delivery` block,
+  separate from `status`.
+- **Cursor pagination.** `GET /agents/{id}/runs?cursor=<opaque>` (from
+  `next_cursor`); `limit`/`offset` still work.
+- **Errors** are a superset of `{error, code}` — also `request_id` (echoed as
+  `X-Request-Id`), `retryable`, `retry_after`, and a `type` doc URL.
+
 ## Runs
 
 | Method | Path | Purpose |
 |---|---|---|
 | `POST` | `/agents/{id}/run` | trigger now → `202 {run_id, status}` |
-| `GET` | `/agents/{id}/runs` | run history (`?limit=&offset=`) |
-| `GET` | `/agents/{id}/runs/{run_id}` | one run's outcome |
+| `GET` | `/agents/{id}/runs` | run history (`?limit=&offset=` or `?cursor=`, optional `?wait=`) |
+| `GET` | `/agents/{id}/runs/{run_id}` | one run's outcome (optional `?wait=`, `?include=delivery`) |
 
 A run object:
 
