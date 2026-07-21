@@ -1,0 +1,31 @@
+{
+  "name": "fn2",
+  "version": "0.1.0",
+  "description": "Start, monitor, and schedule fn2.ai autonomous research agents for public markets from your terminal assistant.",
+  "author": {
+    "name": "fn2",
+    "url": "https://fn2.ai"
+  },
+  "homepage": "https://fn2.ai",
+  "repository": "https://github.com/fn2ai/fn2-skill",
+  "license": "MIT",
+  "keywords": ["fn2", "agents", "markets", "stocks", "scheduling", "automation", "research"],
+  "skills": "./",
+  "interface": {
+    "displayName": "fn2 Agents",
+    "shortDescription": "Launch and schedule fn2.ai market research agents",
+    "longDescription": "Drive the public fn2.ai API to start research agents, check their status and latest results, and schedule them on a cadence such as 'before the next market open'. Dependency-free Python 3 helper; authenticates with a personal fn2 API key.",
+    "developerName": "fn2",
+    "category": "Productivity",
+    "capabilities": ["Interactive", "Read", "Write"],
+    "websiteURL": "https://fn2.ai",
+    "brandColor": "#0B5FFF",
+    "composerIcon": "./assets/icon.svg",
+    "logo": "./assets/logo.svg",
+    "defaultPrompt": [
+      "Use $fn2 to show the status of my fn2 agents.",
+      "Use $fn2 to schedule a pre-market brief on my watchlist before the next market open."
+    ],
+    "screenshots": []
+  }
+}

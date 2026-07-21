@@ -1,0 +1,134 @@
+"""The HTTP layer: one small class over ``urllib`` with typed errors.
+
+Everything network-facing lives here so the rest of the package never touches
+``urllib`` directly and stays trivially testable (the tests swap ``_urlopen``).
+"""
+
+from __future__ import annotations
+
+import json
+import urllib.error
+import urllib.parse
+import urllib.request
+from typing import Any, Optional
+
+from . import __version__
+
+_TIMEOUT_SECONDS = 45
+_USER_AGENT = f"fn2-skill/{__version__} (+https://fn2.ai)"
+
+
+class ApiError(RuntimeError):
+    """A structured failure from the fn2 API or the transport beneath it."""
+
+    def __init__(self, message: str, *, status: Optional[int] = None,
+                 code: Optional[str] = None, payload: Any = None):
+        super().__init__(message)
+        self.status = status
+        self.code = code
+        self.payload = payload
+
+    def __str__(self) -> str:  # pragma: no cover - trivial
+        prefix = f"HTTP {self.status}: " if self.status else ""
+        return prefix + (self.args[0] if self.args else "request failed")
+
+
+class AuthError(ApiError):
+    """Raised on 401/403 so the CLI can point the user at ``fn2 login``."""
+
+
+class Client:
+    """A thin, reusable fn2 API client.
+
+    Parameters
+    ----------
+    base_url:
+        Root of the deployment, e.g. ``https://fn2.ai``.
+    api_key:
+        A ``fn2_...`` key. Optional so public endpoints (none today, but the
+        auth routes exist) can be reached without one.
+    """
+
+    def __init__(self, base_url: str, api_key: Optional[str] = None):
+        self.base_url = base_url.rstrip("/")
+        self.api_key = api_key
+
+    # -- transport -------------------------------------------------------
+    def _urlopen(self, request: urllib.request.Request):
+        # Seam for tests; never call urllib elsewhere.
+        return urllib.request.urlopen(request, timeout=_TIMEOUT_SECONDS)
+
+    def request(self, method: str, path: str, *, body: Optional[dict] = None,
+                auth: bool = True, params: Optional[dict] = None) -> Any:
+        url = self.base_url + path
+        if params:
+            query = urllib.parse.urlencode(
+                {k: v for k, v in params.items() if v is not None}
+            )
+            if query:
+                url = f"{url}?{query}"
+
+        headers = {"Accept": "application/json", "User-Agent": _USER_AGENT}
+        data = None
+        if body is not None:
+            data = json.dumps(body).encode("utf-8")
+            headers["Content-Type"] = "application/json"
+        if auth:
+            if not self.api_key:
+                raise AuthError(
+                    "no fn2 API key configured — run `fn2 login` first",
+                    status=401, code="no_credentials",
+                )
+            headers["Authorization"] = f"Bearer {self.api_key}"
+
+        req = urllib.request.Request(url, data=data, headers=headers, method=method)
+        try:
+            with self._urlopen(req) as resp:
+                raw = resp.read().decode("utf-8", errors="replace")
+                status = resp.getcode()
+        except urllib.error.HTTPError as exc:
+            raise self._http_error(exc) from exc
+        except urllib.error.URLError as exc:
+            raise ApiError(f"could not reach {self.base_url}: {exc.reason}",
+                           code="network") from exc
+
+        if status == 204 or not raw:
+            return {}
+        try:
+            return json.loads(raw)
+        except json.JSONDecodeError as exc:
+            raise ApiError(f"fn2 returned non-JSON ({status}): {raw[:280]}",
+                           status=status, code="bad_response") from exc
+
+    def _http_error(self, exc: urllib.error.HTTPError) -> ApiError:
+        raw = ""
+        try:
+            raw = exc.read().decode("utf-8", errors="replace")
+        except Exception:  # pragma: no cover - defensive
+            pass
+        payload: Any = None
+        message = exc.reason or "request failed"
+        code = None
+        if raw:
+            try:
+                payload = json.loads(raw)
+            except json.JSONDecodeError:
+                message = raw[:280]
+        if isinstance(payload, dict):
+            message = payload.get("error") or payload.get("message") or message
+            code = payload.get("code")
+        cls = AuthError if exc.code in (401, 403) else ApiError
+        return cls(message, status=exc.code, code=code, payload=payload)
+
+    # -- verb sugar ------------------------------------------------------
+    def get(self, path: str, **kw) -> Any:
+        return self.request("GET", path, **kw)
+
+    def post(self, path: str, body: Optional[dict] = None, **kw) -> Any:
+        return self.request("POST", path, body=body, **kw)
+
+    def patch(self, path: str, body: Optional[dict] = None, **kw) -> Any:
+        return self.request("PATCH", path, body=body, **kw)
+
+    def delete(self, path: str, **kw) -> Any:
+        return self.request("DELETE", path, **kw)
