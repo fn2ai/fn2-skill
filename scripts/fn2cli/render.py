@@ -28,6 +28,11 @@ def short_id(value: Any, width: int = 8) -> str:
     return text[:width] if text else "—"
 
 
+def now_iso() -> str:
+    return dt.datetime.now(dt.timezone.utc).replace(microsecond=0).isoformat().replace(
+        "+00:00", "Z")
+
+
 def fmt_ts(value: Any) -> str:
     if not value:
         return "—"
@@ -220,6 +225,15 @@ def usage(u: Dict[str, Any]) -> None:
     if isinstance(key, dict):
         print(f"key       {key.get('name', '?')} "
               f"({key.get('total_requests', 0)} requests)")
+    device = u.get("device")
+    if isinstance(device, dict):
+        scopes = device.get("scopes")
+        parts = [str(device.get("label") or "device")]
+        if scopes:
+            parts.append(f"scopes: {', '.join(scopes)}")
+        if device.get("expires_at"):
+            parts.append(f"expires {fmt_ts(device['expires_at'])}")
+        print(f"device    {' — '.join(parts)}")
 
 
 def models(payload: Any) -> None:

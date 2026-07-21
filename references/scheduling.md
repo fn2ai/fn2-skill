@@ -41,7 +41,7 @@ treated as a single future run (`run_at`):
   little fresh price data. If you need an exchange calendar, drive it with an
   explicit `cron:` and manage exceptions upstream.
 - **"Before the open" = 09:00 ET**, 30 minutes ahead of the 09:30 bell, so a
-  brief lands in your inbox before trading starts.
+  brief is ready (via `fn2 result` and the fn2 web app) before trading starts.
 - **Timezone maths for one-off runs** needs Python's `zoneinfo` (standard since
   3.9). On the rare build without it, use a recurring cadence (server-side
   timezone) or an absolute UTC time instead.

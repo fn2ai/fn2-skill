@@ -18,18 +18,14 @@ market open."* It is one dependency-free Python 3 file tree: **no `pip install`,
 no build step, standard library only.**
 
 ```text
-you › schedule a pre-market brief on my watchlist before the open, and email me
+you › schedule a pre-market brief on my watchlist before the open
   ↳ ✓ agent created — a1b2c3d4
      cadence: every weekday at 09:00 America/New_York (before the open)
-     results are emailed to your fn2 account after each run.
+     results:   fn2 result a1b2c3d4 <run_id> — also in the fn2 web app,
+                where email delivery can be configured.
 ```
 
 ## Get started
-
-> [!NOTE]
-> You need an fn2 account and a personal API key (a `fn2_…` string). The steps
-> below create one; the key is stored locally with `0600` permissions and never
-> printed in full.
 
 ### 1. Install into your harness
 
@@ -50,18 +46,20 @@ git clone https://github.com/fn2ai/fn2-skill "${CODEX_HOME:-$HOME/.codex}/plugin
 Or just run `make install` from the repo to link it into whichever harnesses it
 finds.
 
-### 2. Connect your account
+### 2. Connect your account — no secret copying
 
 ```bash
-python3 scripts/fn2 login --email you@example.com
+python3 scripts/fn2 auth login
 ```
 
-This prints a personalized sign-up link. Open it, confirm your email, create an
-API key with the **`agents`** scope, then paste it back:
+The terminal prints a short code and opens `https://fn2.ai/start`. Sign in (or
+sign up), type the code, click **Approve** — done. The CLI receives a scoped,
+revocable device credential and stores it in the macOS Keychain (or an
+owner-only file on Linux). You never see or copy a secret.
 
 ```bash
-python3 scripts/fn2 login --token fn2_xxxxxxxxxxxxxxxxxxxx
 python3 scripts/fn2 whoami          # confirms plan + quota
+python3 scripts/fn2 auth status     # credential health + where it's stored
 ```
 
 ### 3. Ask your assistant
@@ -76,7 +74,12 @@ Once installed, you talk to it in natural language and it calls the skill:
 
 | Command | Does |
 |---|---|
-| `login` / `logout` / `whoami` | connect, disconnect, show plan + quota |
+| `auth login [--no-browser]` | connect via the browser device flow (code at fn2.ai/start) |
+| `auth status` | storage backend, masked credential, scopes, expiry, live check |
+| `auth logout [--revoke]` | disconnect (optionally revoke the credential on fn2 first) |
+| `permissions` | what the credential can and cannot do |
+| `doctor` | diagnose config, storage, and connectivity |
+| `login --token` / `whoami` | manual API-key fallback / show plan + quota |
 | `models` | list models available to your account |
 | `start "<prompt>" [--when …]` | create an agent — runs now, or on a schedule |
 | `agents` (`ls`) | list your agents |
@@ -86,7 +89,9 @@ Once installed, you talk to it in natural language and it calls the skill:
 | `pause` / `resume` / `schedule <id> "<cadence>"` | manage the cadence |
 | `delete <id>` | remove an agent and its history |
 
-Every command accepts `--json` for scripting.
+Every command accepts `--json` for scripting. Run results are available via
+`fn2 result` and in the fn2 web app; email delivery is configured in the web
+app.
 
 ## Scheduling in plain English
 
@@ -107,25 +112,37 @@ holidays — see [references/scheduling.md](references/scheduling.md).
 
 ## Security & configuration
 
-The API key is resolved in this order — the first hit wins:
+The credential is resolved in this order — the first hit wins:
 
-1. `FN2_API_KEY` environment variable
-2. a `.env` file in the working directory (see [`.env.example`](.env.example))
-3. `~/.config/fn2/credentials.json` (written `0600` by `fn2 login`)
+1. `FN2_API_TOKEN` environment variable (canonical headless override;
+   accepts `fn2d_…` device tokens and `fn2_…` API keys)
+2. `FN2_API_KEY` environment variable (legacy alias)
+3. macOS Keychain (service `fn2-skill`; used automatically on macOS)
+4. `~/.config/fn2/credentials.json` (written `0600`, directory `0700`)
 
-Other knobs: `FN2_BASE_URL` (default `https://fn2.ai`), `FN2_CONFIG_HOME`,
-`FN2_DOTENV`. The recommended, most secure setup is `fn2 login` — the `.env`
-option exists for CI and container convenience.
+There is **no `.env` support** — a working-directory file can never inject a
+credential. Other knobs: `FN2_BASE_URL` (default `https://fn2.ai`),
+`FN2_CONFIG_HOME`.
 
-The skill never echoes your key; `whoami` and all output show a masked
-`fn2_…wxyz` form only.
+Hard safety rails:
+
+- **Origin pinning** — the API base must be `https://` on `fn2.ai` or
+  `*.fn2.ai`; the credential is never sent anywhere else
+  (`FN2_ALLOW_DEV_BASE=1` exists for local development only and warns loudly).
+- **Redaction** — the credential appears only as a masked `fn2d_…wxyz` form in
+  all output, including `--json` and error text.
+- **Revocation** — revoke any connected device in the fn2 web app under
+  **Preferences → Developer → Connected Devices** (or `fn2 auth logout
+  --revoke`); it takes effect within a few minutes everywhere.
 
 ## How it works
 
 ```
 scripts/fn2            → entry point (adds scripts/ to sys.path, calls the CLI)
 scripts/fn2cli/
-  config.py            → credential + endpoint resolution
+  config.py            → credential + endpoint resolution, origin pinning, redaction
+  storage.py           → macOS Keychain / owner-only file + pending-login state
+  deviceauth.py        → the fn2.ai/start device-authorization flow
   client.py            → urllib HTTP layer + typed errors
   api.py               → one function per fn2 endpoint
   schedule.py          → "before market open" → fn2 schedule object
@@ -134,8 +151,8 @@ scripts/fn2cli/
 ```
 
 It talks only to the documented public API (`/api/v1/agents`, `/runs`, `/usage`,
-`/models`) with your key — no admin access, no scraping. See
-[references/api.md](references/api.md).
+`/models`, `/skill/device-auth/*`) with your scoped credential — no admin
+access, no scraping. See [references/api.md](references/api.md).
 
 ## Development
 
