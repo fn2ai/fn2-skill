@@ -76,15 +76,16 @@ class ScheduleTests(unittest.TestCase):
 # config
 # ---------------------------------------------------------------------------
 class ConfigTests(unittest.TestCase):
+    _ENV_KEYS = ("FN2_API_TOKEN", "FN2_API_KEY", "FN2_BASE_URL",
+                 "FN2_CONFIG_HOME", "FN2_DOTENV", "FN2_ALLOW_DEV_BASE")
+
     def setUp(self):
         self._tmp = tempfile.TemporaryDirectory()
         self.addCleanup(self._tmp.cleanup)
-        self._env = {k: os.environ.get(k) for k in
-                     ("FN2_API_KEY", "FN2_BASE_URL", "FN2_CONFIG_HOME", "FN2_DOTENV")}
+        self._env = {k: os.environ.get(k) for k in self._ENV_KEYS}
+        for key in self._ENV_KEYS:
+            os.environ.pop(key, None)
         os.environ["FN2_CONFIG_HOME"] = self._tmp.name
-        os.environ["FN2_DOTENV"] = os.path.join(self._tmp.name, "nope.env")
-        os.environ.pop("FN2_API_KEY", None)
-        os.environ.pop("FN2_BASE_URL", None)
 
     def tearDown(self):
         for key, value in self._env.items():
@@ -99,34 +100,47 @@ class ConfigTests(unittest.TestCase):
         self.assertFalse(settings.authenticated)
         self.assertEqual(settings.source, "none")
 
-    def test_env_beats_file(self):
-        config.save_token("fn2_fromfile00000000", "https://file.example")
-        os.environ["FN2_API_KEY"] = "fn2_fromenv000000000"
+    def test_env_token_beats_legacy_and_file(self):
+        config.save_token("fn2_fromfile00000000", "https://test.fn2.ai")
+        os.environ["FN2_API_KEY"] = "fn2_fromlegacy000000"
+        os.environ["FN2_API_TOKEN"] = "fn2d_fromenv00000000"
         settings = config.resolve()
-        self.assertEqual(settings.api_key, "fn2_fromenv000000000")
+        self.assertEqual(settings.api_key, "fn2d_fromenv00000000")
         self.assertEqual(settings.source, "env")
+        self.assertEqual(settings.credential_kind, "device")
+
+    def test_legacy_alias_beats_file(self):
+        config.save_token("fn2_fromfile00000000", "https://test.fn2.ai")
+        os.environ["FN2_API_KEY"] = "fn2_fromlegacy000000"
+        settings = config.resolve()
+        self.assertEqual(settings.api_key, "fn2_fromlegacy000000")
+        self.assertEqual(settings.source, "env-legacy")
 
     def test_save_is_0600_and_roundtrips(self):
         path = config.save_token("fn2_secretkey00000000")
         self.assertEqual(config.resolve().api_key, "fn2_secretkey00000000")
+        self.assertEqual(config.resolve().source, "file")
         mode = os.stat(path).st_mode & 0o777
         self.assertEqual(mode, 0o600)
         self.assertTrue(config.clear_token())
         self.assertFalse(config.resolve().authenticated)
 
-    def test_dotenv_is_read(self):
+    def test_dotenv_support_is_gone(self):
+        self.assertFalse(hasattr(config, "load_dotenv"))
         dotenv = os.path.join(self._tmp.name, "some.env")
         with open(dotenv, "w", encoding="utf-8") as fh:
-            fh.write("# comment\nFN2_API_KEY = fn2_fromdotenv0000000\n")
-        os.environ["FN2_DOTENV"] = dotenv
+            fh.write("FN2_API_KEY = fn2_fromdotenv0000000\n")
+        os.environ["FN2_DOTENV"] = dotenv  # must be inert now
         settings = config.resolve()
-        self.assertEqual(settings.api_key, "fn2_fromdotenv0000000")
-        self.assertEqual(settings.source, "dotenv")
+        self.assertIsNone(settings.api_key)
+        self.assertEqual(settings.source, "none")
 
     def test_mask_and_key_shape(self):
         self.assertTrue(config.looks_like_key("fn2_abcdef"))
         self.assertFalse(config.looks_like_key("nope"))
+        self.assertTrue(config.looks_like_credential("fn2d_" + "a" * 40))
         self.assertEqual(config.mask("fn2_abcdefwxyz"), "fn2_…wxyz")
+        self.assertEqual(config.mask("fn2d_" + "a" * 36 + "wxyz"), "fn2d_…wxyz")
         self.assertEqual(config.mask(None), "(none)")
 
 

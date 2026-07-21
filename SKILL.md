@@ -4,11 +4,11 @@ description: >
   Start, monitor, and schedule fn2.ai autonomous research agents for public
   markets from your terminal assistant. Use when asked to launch or run an fn2
   agent, check what your agents are doing or their latest results, schedule an
-  agent to run on a cadence ("run this before the next market open and email
-  me", "every weekday at 8am", "hourly"), pause/resume/reschedule/delete an
-  agent, or connect an fn2 account. Talks to the public fn2 HTTP API with a
-  personal API key; no admin access required.
-version: 0.1.0
+  agent to run on a cadence ("run this before the next market open", "every
+  weekday at 8am", "hourly"), pause/resume/reschedule/delete an agent, or
+  connect an fn2 account. Talks to the public fn2 HTTP API with a scoped,
+  revocable device credential; no admin access required.
+version: 0.2.0
 license: MIT
 platforms: [macos, linux]
 allowed-tools: Bash
@@ -27,22 +27,30 @@ schedule fn2 research agents without leaving Claude, Codex, or Pi. It is a
 single, dependency-free Python 3 helper — standard library only, no `pip
 install`, no build step.
 
-## First run — connect an account
-
-The user needs an fn2 account and a personal API key (a `fn2_…` string). Kick
-off onboarding; it prints a personalized sign-up link and stores the key with
-`0600` permissions once pasted back.
+## First run — connect an account (no secret copying)
 
 ```bash
 FN2="$(dirname "$0")"        # resolve the skill dir; see "Locating the helper"
-python3 "$FN2/scripts/fn2" login --email "user@example.com"
-# → open the link, sign up (email-confirmed), create a key with the 'agents' scope
-python3 "$FN2/scripts/fn2" login --token fn2_xxxxxxxxxxxxxxxxxxxx
-python3 "$FN2/scripts/fn2" whoami          # confirm plan + quota
+python3 "$FN2/scripts/fn2" auth login
+# → Open https://fn2.ai/start
+# → Enter code XXXX-XXXX
 ```
 
-Never paste a key into chat or commit it. The key is read (in order) from
-`FN2_API_KEY`, a local `.env`, then `~/.config/fn2/credentials.json`.
+That's the whole flow: the browser opens `https://fn2.ai/start`, the user signs
+in (or signs up) and types the short code shown in the terminal, clicks
+**Approve**, and the CLI receives a scoped, revocable device credential. The
+credential is stored in the macOS Keychain when available, otherwise in
+`~/.config/fn2/credentials.json` with `0600` permissions. No key is ever
+pasted, printed, or sent to chat.
+
+- Interrupted? `fn2 auth login` resumes the same code until it expires
+  (15 minutes), then starts a fresh one.
+- Check the connection any time: `fn2 auth status`. See what it can do:
+  `fn2 permissions`. Diagnose problems: `fn2 doctor`.
+- Disconnect: `fn2 auth logout` (add `--revoke` to also kill the credential on
+  fn2). Credentials can also be revoked in the fn2 web app under
+  **Preferences → Developer → Connected Devices** — revocation takes effect
+  within a few minutes everywhere.
 
 ## Locating the helper
 
@@ -77,17 +85,20 @@ python3 "$FN2" pause <agent_id>
 python3 "$FN2" resume <agent_id>
 python3 "$FN2" schedule <agent_id> "hourly"
 python3 "$FN2" delete <agent_id>
+
+python3 "$FN2" auth status                # credential health + storage backend
+python3 "$FN2" permissions                # what the credential can / cannot do
+python3 "$FN2" doctor                     # local diagnostics
+python3 "$FN2" auth logout --revoke       # disconnect + revoke on fn2
 ```
 
 Add `--json` to any command for machine-readable output.
 
-## "…and email me"
+## Reading results
 
-fn2 emails an agent's findings to the account email after each run — that is the
-platform default, so scheduling the cadence is all this skill needs to do. To
-satisfy "run this before the next market open and email me", schedule the agent
-(`--when "before market open"` for a recurring brief, or `--when "before next
-market open"` for a single run) and the email is delivered automatically.
+Results are available via `fn2 result <agent_id> <run_id>` and in the fn2 web
+app. Email delivery is configured in the web app — the skill schedules runs;
+it does not manage delivery.
 
 ## Scheduling vocabulary
 
@@ -97,10 +108,23 @@ market open"` for a single run) and the email is delivered automatically.
 phrases assume the US equities session and default to `America/New_York`; they
 do **not** skip market holidays. See [references/scheduling.md](references/scheduling.md).
 
+## Advanced / CI — headless credential
+
+For CI or containers where a browser flow is impossible, set the environment
+variable **`FN2_API_TOKEN`** (accepts a device token `fn2d_…` or an API key
+`fn2_…`). It is the only headless override; `FN2_API_KEY` remains as a legacy
+alias. There is no `.env` support.
+
+A manual API key still works as a fallback: create one in the fn2 web app
+(**Preferences → Developer**, needs the `agents` scope) and run
+`fn2 login --token fn2_…`. Prefer `fn2 auth login` everywhere else.
+
 ## Safety
 
-- Treat the `fn2_…` key as a secret: never echo it, never commit it, never send
-  it to chat. `whoami` and all output show only a masked form.
+- Never paste a credential into chat, argv, or a commit. All output — including
+  `--json` and error text — shows only a masked `fn2d_…wxyz` form.
+- The API base is pinned to `https://fn2.ai` / `*.fn2.ai`; the credential is
+  never sent anywhere else.
 - `delete` is irreversible (removes the agent and its history). Confirm the
   agent id with `status` first; pass `--yes` only when the user is explicit.
 - Prefer read-only verbs (`agents`, `status`, `runs`, `result`) before creating
@@ -110,4 +134,4 @@ do **not** skip market holidays. See [references/scheduling.md](references/sched
 
 - [references/api.md](references/api.md) — the endpoint contract this skill maps to.
 - [references/scheduling.md](references/scheduling.md) — cadence phrases and calendar caveats.
-- [references/troubleshooting.md](references/troubleshooting.md) — auth, quota, and network errors.
+- [references/troubleshooting.md](references/troubleshooting.md) — auth, storage, quota, and network errors.
