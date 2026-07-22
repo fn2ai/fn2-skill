@@ -18,7 +18,8 @@ import unittest
 from unittest import mock
 
 # Make the bundled package importable without installation.
-_SCRIPTS = pathlib.Path(__file__).resolve().parent.parent / "scripts"
+_SCRIPTS = (pathlib.Path(__file__).resolve().parent.parent /
+            "skills" / "fn2" / "scripts")
 sys.path.insert(0, str(_SCRIPTS))
 
 from fn2cli import cli, config, deviceauth, storage  # noqa: E402
@@ -60,6 +61,10 @@ class _EnvSandbox(unittest.TestCase):
         for key in self._ENV_KEYS:
             os.environ.pop(key, None)
         os.environ["FN2_CONFIG_HOME"] = self._tmp.name
+        self._keychain = mock.patch.object(
+            storage, "keychain_available", return_value=False)
+        self._keychain.start()
+        self.addCleanup(self._keychain.stop)
 
     def tearDown(self):
         for key, value in self._env.items():

@@ -1,0 +1,21 @@
+{
+  "name": "fn2",
+  "interface": {
+    "displayName": "fn2"
+  },
+  "plugins": [
+    {
+      "name": "fn2",
+      "source": {
+        "source": "url",
+        "url": "https://github.com/fn2ai/fn2-skill.git",
+        "ref": "main"
+      },
+      "policy": {
+        "installation": "AVAILABLE",
+        "authentication": "ON_INSTALL"
+      },
+      "category": "Productivity"
+    }
+  ]
+}

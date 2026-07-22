@@ -31,7 +31,7 @@ credential. These routes are unauthenticated (except `logout`) and return
 ```json
 {
   "client": "fn2-skill",
-  "client_version": "0.2.0",
+  "client_version": "0.2.1",
   "harness": "claude",
   "os": "macos",
   "scopes": ["agents", "models"]
