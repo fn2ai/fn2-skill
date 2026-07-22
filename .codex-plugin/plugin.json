@@ -1,6 +1,6 @@
 {
   "name": "fn2",
-  "version": "0.2.0",
+  "version": "0.2.1",
   "description": "Start, monitor, and schedule fn2.ai autonomous research agents for public markets from your terminal assistant.",
   "author": {
     "name": "fn2",
@@ -10,7 +10,7 @@
   "repository": "https://github.com/fn2ai/fn2-skill",
   "license": "MIT",
   "keywords": ["fn2", "agents", "markets", "stocks", "scheduling", "automation", "research"],
-  "skills": "./",
+  "skills": "./skills/",
   "interface": {
     "displayName": "fn2 Agents",
     "shortDescription": "Launch and schedule fn2.ai market research agents",

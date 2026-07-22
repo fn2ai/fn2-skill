@@ -29,27 +29,35 @@ you › schedule a pre-market brief on my watchlist before the open
 
 ### 1. Install into your harness
 
-**Claude Code / Pi** — copy or symlink the skill folder:
+**Claude Code** — add the repository marketplace, then install the plugin:
+
+```bash
+claude plugin marketplace add fn2ai/fn2-skill
+claude plugin install fn2@fn2
+```
+
+**Codex** — use the same repository as a Codex marketplace:
+
+```bash
+codex plugin marketplace add fn2ai/fn2-skill
+codex plugin add fn2@fn2
+```
+
+**Pi**, or local development in any harness — clone the repository and link the
+canonical skill directory:
 
 ```bash
 git clone https://github.com/fn2ai/fn2-skill ~/.fn2-skill
-ln -s ~/.fn2-skill ~/.claude/skills/fn2          # Claude Code
-ln -s ~/.fn2-skill "${HERMES_HOME:-$HOME/.hermes}/skills/fn2"   # Pi
+ln -s ~/.fn2-skill/skills/fn2 "${HERMES_HOME:-$HOME/.hermes}/skills/fn2"
 ```
 
-**Codex** — it ships a `.codex-plugin/plugin.json`, so install as a plugin:
-
-```bash
-git clone https://github.com/fn2ai/fn2-skill "${CODEX_HOME:-$HOME/.codex}/plugins/fn2"
-```
-
-Or just run `make install` from the repo to link it into whichever harnesses it
-finds.
+Run `make install` from a checkout to link the canonical skill into Claude,
+Codex, and Pi at once.
 
 ### 2. Connect your account — no secret copying
 
 ```bash
-python3 scripts/fn2 auth login
+python3 skills/fn2/scripts/fn2 auth login
 ```
 
 The terminal prints a short code and opens `https://fn2.ai/start`. Sign in (or
@@ -58,8 +66,8 @@ revocable device credential and stores it in the macOS Keychain (or an
 owner-only file on Linux). You never see or copy a secret.
 
 ```bash
-python3 scripts/fn2 whoami          # confirms plan + quota
-python3 scripts/fn2 auth status     # credential health + where it's stored
+python3 skills/fn2/scripts/fn2 whoami          # confirms plan + quota
+python3 skills/fn2/scripts/fn2 auth status     # credential health + where it's stored
 ```
 
 ### 3. Ask your assistant
@@ -107,8 +115,9 @@ in 2 hours / tomorrow at 9am / 2026-07-22T13:00    one-off runs
 cron:0 9 * * 1-5        raw cron for full control
 ```
 
-Market phrases default to `America/New_York` and **do not** skip market
-holidays — see [references/scheduling.md](references/scheduling.md).
+Market phrases default to `America/New_York` and are resolved against the
+exchange calendar server-side, so they skip holidays and respect half-days — see
+[skills/fn2/references/scheduling.md](skills/fn2/references/scheduling.md).
 
 ## Security & configuration
 
@@ -138,8 +147,8 @@ Hard safety rails:
 ## How it works
 
 ```
-scripts/fn2            → entry point (adds scripts/ to sys.path, calls the CLI)
-scripts/fn2cli/
+skills/fn2/scripts/fn2            → entry point (adds scripts/ to sys.path, calls the CLI)
+skills/fn2/scripts/fn2cli/
   config.py            → credential + endpoint resolution, origin pinning, redaction
   storage.py           → macOS Keychain / owner-only file + pending-login state
   deviceauth.py        → the fn2.ai/start device-authorization flow
@@ -152,14 +161,15 @@ scripts/fn2cli/
 
 It talks only to the documented public API (`/api/v1/agents`, `/runs`, `/usage`,
 `/models`, `/skill/device-auth/*`) with your scoped credential — no admin
-access, no scraping. See [references/api.md](references/api.md).
+access, no scraping. See [skills/fn2/references/api.md](skills/fn2/references/api.md).
 
 ## Development
 
 ```bash
 make test        # unittest, no network
 make lint        # byte-compile every module
-make install     # link into detected harnesses
+make validate    # strict Claude plugin validation (when Claude Code is installed)
+make install     # link the canonical skill into Claude, Codex, and Pi
 ```
 
 ## License

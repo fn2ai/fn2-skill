@@ -8,9 +8,7 @@ description: >
   weekday at 8am", "hourly"), pause/resume/reschedule/delete an agent, or
   connect an fn2 account. Talks to the public fn2 HTTP API with a scoped,
   revocable device credential; no admin access required.
-version: 0.2.0
 license: MIT
-platforms: [macos, linux]
 allowed-tools: Bash
 metadata:
   homepage: https://fn2.ai
@@ -29,9 +27,10 @@ install`, no build step.
 
 ## First run — connect an account (no secret copying)
 
+Resolve the helper as described in **Locating the helper**, then run:
+
 ```bash
-FN2="$(dirname "$0")"        # resolve the skill dir; see "Locating the helper"
-python3 "$FN2/scripts/fn2" auth login
+python3 "$FN2" auth login
 # → Open https://fn2.ai/start
 # → Enter code XXXX-XXXX
 ```
@@ -54,14 +53,19 @@ pasted, printed, or sent to chat.
 
 ## Locating the helper
 
-The bundled helper lives at `<skill-dir>/scripts/fn2`. Resolve the skill dir
-for whichever harness is running:
+The bundled helper lives at `<skill-dir>/scripts/fn2`. Resolve `<skill-dir>`
+from the path of this loaded `SKILL.md`; do not assume the current working
+directory. Claude Code expands `${CLAUDE_SKILL_DIR}` to this directory. The
+fallback locations below cover standalone installs in the supported harnesses:
 
 ```bash
-for d in "$HOME/.claude/skills/fn2" "${CODEX_HOME:-$HOME/.codex}/skills/fn2" \
+FN2_SKILL_DIR="${CLAUDE_SKILL_DIR:-}"
+for d in "$FN2_SKILL_DIR" "$HOME/.claude/skills/fn2" \
+         "${CODEX_HOME:-$HOME/.codex}/skills/fn2" "$HOME/.agents/skills/fn2" \
          "${HERMES_HOME:-$HOME/.hermes}/skills/fn2" "$(pwd)"; do
   [ -f "$d/scripts/fn2" ] && FN2="$d/scripts/fn2" && break
 done
+test -n "${FN2:-}" || { echo "fn2 helper not found" >&2; exit 1; }
 python3 "$FN2" --help
 ```
 
