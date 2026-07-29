@@ -166,3 +166,40 @@ Run results are available through `GET /agents/{id}/runs/{run_id}`
 `delivery: {email: true}` on create, mapped to the account's own verified email
 (the server resolves the address and honors opt-out; no recipient is ever sent
 by the client). Additional delivery channels/rules are configured in the web app.
+
+## MCP connector — the same API, from an MCP client
+
+fn2 also speaks MCP. Paste `https://mcp.fn2.ai/mcp` into an MCP client's "add a
+custom connector" dialog (Claude, Cursor, MCP Inspector) and it runs an OAuth 2.1
+authorization-code + PKCE flow: the client registers itself, the user approves the
+grant in the browser at `https://fn2.ai/authorize`, and the client receives a
+scoped access token (`fn2m_…`).
+
+**It is this contract, not a second one.** Each tool is one row mapping to a route
+above, dispatched through the same `/api/v1` endpoints with the same scopes, plan
+and cadence limits, model entitlement, quota pre-flight, `Idempotency-Key` replay,
+cursor pagination, and error envelope. The skill and the connector are two front
+doors onto one API.
+
+| Tool | Route |
+|---|---|
+| `list_agents` / `get_agent` | `GET /agents`, `GET /agents/{id}` |
+| `start_agent` / `update_agent` | `POST /agents`, `PATCH /agents/{id}` |
+| `pause_agent` / `resume_agent` | `PATCH /agents/{id}` with `status` |
+| `delete_agent` | `DELETE /agents/{id}` (requires `confirm: true`) |
+| `run_agent` / `list_runs` / `get_run` | `POST /agents/{id}/run`, `GET /agents/{id}/runs[/{run_id}]` |
+| `get_usage` / `list_models` | `GET /usage`, `GET /models` |
+| `run_chat` | `POST /chat/incognito` |
+
+Scopes are the same vocabulary: `agents`, `models`, and — unlike a device token —
+`chat`, which `run_chat` needs. The client sees only the tools its granted scopes
+can actually call.
+
+**Credentials do not cross origins.** An `fn2m_` token is valid only on
+`mcp.fn2.ai`; `fn2d_` device tokens and `fn2_` API keys are rejected there, and an
+`fn2m_` token is rejected on `fn2.ai`. Do not put an MCP token in `FN2_API_TOKEN`
+and do not point the CLI at the MCP host. Grants are revoked in the web app under
+**Preferences → Developer → Connected Apps** (per-app or revoke-all).
+
+Full protocol, security and cross-region contract: `docs/public-mcp-server.md` in
+the fn2 server repo (stock-server).
