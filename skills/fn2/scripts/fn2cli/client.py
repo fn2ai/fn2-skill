@@ -28,9 +28,13 @@ class ApiError(RuntimeError):
         self.code = code
         self.payload = payload
 
-    def __str__(self) -> str:  # pragma: no cover - trivial
+    def __str__(self) -> str:
+        # Belt to _http_error's braces. An error path that raises while being
+        # rendered turns a handled failure into a traceback, which is the one
+        # thing an error type must never do — so coerce rather than assume the
+        # message is a string.
         prefix = f"HTTP {self.status}: " if self.status else ""
-        return prefix + (self.args[0] if self.args else "request failed")
+        return prefix + (str(self.args[0]) if self.args else "request failed")
 
 
 class AuthError(ApiError):
@@ -115,10 +119,27 @@ class Client:
             except json.JSONDecodeError:
                 message = raw[:280]
         if isinstance(payload, dict):
-            message = payload.get("error") or payload.get("message") or message
+            # TWO error envelopes reach this client and they disagree about
+            # what `error` holds:
+            #
+            #   Flask  {"error": "Agent not found", "code": "not_found"}
+            #   nginx  {"error": true, "message": "No token provided",
+            #           "code": "UNAUTHORIZED"}
+            #
+            # The gateway's `error` is a BOOLEAN FLAG, not the text. Taking it
+            # verbatim put `True` in the message and every later `str(exc)`
+            # raised `TypeError: can only concatenate str (not "bool")` — so
+            # any gateway-originated failure crashed the CLI with a traceback
+            # instead of printing the reason. Accept `error` only when it is
+            # actually a string; otherwise fall through to `message`.
+            for key in ("error", "message"):
+                value = payload.get(key)
+                if isinstance(value, str) and value.strip():
+                    message = value
+                    break
             code = payload.get("code")
         cls = AuthError if exc.code in (401, 403) else ApiError
-        return cls(message, status=exc.code, code=code, payload=payload)
+        return cls(str(message), status=exc.code, code=code, payload=payload)
 
     # -- verb sugar ------------------------------------------------------
     def get(self, path: str, **kw) -> Any:
