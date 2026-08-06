@@ -156,7 +156,7 @@ A run object:
 
 | Method | Path | Purpose |
 |---|---|---|
-| `GET` | `/usage` | plan, token quota/usage, credential metadata (includes a `device` block when authenticated with a device token) |
+| `GET` | `/usage` | plan, token quota/usage, the weekly `research_requests` allowance, credential metadata (includes a `device` block when authenticated with a device token) |
 | `GET` | `/models` | models enabled for the account |
 
 ## Reading results
@@ -181,19 +181,51 @@ and cadence limits, model entitlement, quota pre-flight, `Idempotency-Key` repla
 cursor pagination, and error envelope. The skill and the connector are two front
 doors onto one API.
 
-| Tool | Route |
-|---|---|
-| `list_agents` / `get_agent` | `GET /agents`, `GET /agents/{id}` |
-| `start_agent` / `update_agent` | `POST /agents`, `PATCH /agents/{id}` |
-| `pause_agent` / `resume_agent` | `PATCH /agents/{id}` with `status` |
-| `delete_agent` | `DELETE /agents/{id}` (requires `confirm: true`) |
-| `run_agent` / `list_runs` / `get_run` | `POST /agents/{id}/run`, `GET /agents/{id}/runs[/{run_id}]` |
-| `get_usage` / `list_models` | `GET /usage`, `GET /models` |
-| `run_chat` | `POST /chat/incognito` |
+| Tool | Route | Scope |
+|---|---|---|
+| `list_agents` / `get_agent` | `GET /agents`, `GET /agents/{id}` | `agents` |
+| `start_agent` / `update_agent` | `POST /agents`, `PATCH /agents/{id}` | `agents` |
+| `pause_agent` / `resume_agent` | `PATCH /agents/{id}` with `status` | `agents` |
+| `delete_agent` | `DELETE /agents/{id}` (requires `confirm: true`) | `agents` |
+| `run_agent` / `list_runs` / `get_run` | `POST /agents/{id}/run`, `GET /agents/{id}/runs[/{run_id}]` | `agents` |
+| `get_usage` | `GET /usage` | `agents` |
+| `list_models` | `GET /models` | `models` |
+| `run_chat` | `POST /chat/incognito` | `chat` |
+| `search_transcripts` | `GET /research/transcripts/search` | `research` |
+| `recall` | `GET /research/recall` | `research` |
+| `get_stock_price` | `GET /research/prices` | `research` |
+| `get_fred_series` | `GET /research/fred` | `research` |
+| `get_company_financials` | `GET /research/financials` | `research` |
 
-Scopes are the same vocabulary: `agents`, `models`, and — unlike a device token —
-`chat`, which `run_chat` needs. The client sees only the tools its granted scopes
-can actually call.
+Scopes are the same vocabulary: `agents`, `models`, `research`, and — unlike a
+device token — `chat`, which `run_chat` needs. The client sees only the tools its
+granted scopes can actually call. A client that requests no `scope` at all gets
+`agents models research`; `chat` is opt-in.
+
+### The research surface and its weekly allowance
+
+The five `research` tools are read-only market data — earnings-call text, prices,
+FRED series, SEC-derived financials, and the account's own saved notes. They spend
+no model tokens, so they are **not** metered against the monthly token quota. They
+draw on a separate **weekly request allowance** that resets Monday 00:00 UTC and
+depends on the plan:
+
+| Plan | Research requests / week |
+|---|---|
+| Free | 25 |
+| Pro trial | 100 |
+| Pro | 500 |
+| Ultra | 2000 |
+| Max | 5000 |
+
+`GET /usage` reports it as `research_requests` (`used` / `limit` / `remaining` /
+`resets_at`) beside the token block, so a client can show what is left before a
+call fails. When it runs out the tool returns `429` with
+`code: "api_quota_exceeded"` and an `error` message naming the plan, the limit,
+the reset date and the upgrade URL — **relay it as written rather than retrying**;
+the number does not change until the reset. A failed call does not spend the
+allowance: a `404` for an unknown ticker and a `503` from an unavailable index
+are both free.
 
 **Credentials do not cross origins.** An `fn2m_` token is valid only on
 `mcp.fn2.ai`; `fn2d_` device tokens and `fn2_` API keys are rejected there, and an
