@@ -416,13 +416,26 @@ def cmd_doctor(args: argparse.Namespace) -> int:
              " (FN2_ALLOW_DEV_BASE=1 dev override)" if verdict == "dev-allowed" else
              " — credentials will not be sent here"))
 
-    # reachability (unauthenticated endpoint; no credential leaves the machine)
+    # Reachability, from a SIGNED-OUT machine — which is when `doctor` is
+    # actually run. The probe must therefore be an endpoint the public gateway
+    # lets through unauthenticated.
+    #
+    # It used to probe /api/v1/market/status. That route is public in
+    # stock-server but stock-web's `location /api/` runs a JWT gate in front of
+    # it, so it answers 401 to anyone without a session — this check could
+    # never pass before sign-in, which is precisely the state `doctor` exists
+    # to diagnose. (The deploy smoke reaches market/status through the
+    # kube-apiserver service proxy rather than nginx, which is why the
+    # asymmetry went unnoticed. Same class as FNAI-2411.)
+    #
+    # /api/v1/public-config is genuinely public: it backs the signed-out shell.
+    probe = "/api/v1/public-config"
     if verdict == "refused":
         check("reachability", None, "skipped — base URL refused")
     else:
         try:
-            Client(settings.base_url).get("/api/v1/market/status", auth=False)
-            check("reachability", True, f"{settings.base_url}/api/v1/market/status ok")
+            Client(settings.base_url).get(probe, auth=False)
+            check("reachability", True, f"{settings.base_url}{probe} ok")
         except ApiError as exc:
             check("reachability", False, config.redact(str(exc)))
 

@@ -305,3 +305,84 @@ class RenderTests(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+# ---------------------------------------------------------------------------
+# Gateway error envelopes (the nginx `error: true` trap)
+# ---------------------------------------------------------------------------
+
+def _http_error(status, body):
+    import io
+    import urllib.error
+    return urllib.error.HTTPError(
+        "https://fn2.ai/api/v1/whatever", status, "Unauthorized", {},
+        io.BytesIO(body.encode("utf-8")))
+
+
+def test_gateway_error_envelope_does_not_put_a_bool_in_the_message():
+    """nginx and Flask disagree about what `error` holds.
+
+        Flask  {"error": "Agent not found", "code": "not_found"}
+        nginx  {"error": true, "message": "No token provided", ...}
+
+    The gateway's `error` is a BOOLEAN FLAG. Taking it verbatim put `True` in
+    the message, and the next `str(exc)` raised
+    `TypeError: can only concatenate str (not "bool")` — so every
+    gateway-originated failure crashed the CLI with a traceback instead of
+    printing the reason. `fn2 doctor` on a signed-out machine hit this on the
+    first command a new user runs.
+    """
+    from fn2cli.client import AuthError, Client
+
+    exc = Client("https://fn2.ai")._http_error(_http_error(
+        401, '{"code":"UNAUTHORIZED","error":true,"message":"No token provided"}'))
+
+    assert isinstance(exc, AuthError)
+    assert exc.code == "UNAUTHORIZED"
+    # The message is the human text, never the flag.
+    assert exc.args[0] == "No token provided"
+    assert str(exc) == "HTTP 401: No token provided"
+
+
+def test_flask_error_envelope_still_reads_the_error_string():
+    from fn2cli.client import Client
+
+    exc = Client("https://fn2.ai")._http_error(_http_error(
+        404, '{"error":"Agent not found","code":"not_found"}'))
+    assert str(exc) == "HTTP 404: Agent not found"
+
+
+def test_rendering_an_error_never_raises_whatever_the_payload_holds():
+    """An error type that raises while being rendered turns a handled failure
+    into a traceback. Coerce; never assume."""
+    from fn2cli.client import ApiError, Client
+
+    for body in ('{"error":true}', '{"error":123}', '{"error":null}',
+                 '{"error":{"nested":"object"}}', '{}', 'not json at all'):
+        exc = Client("https://fn2.ai")._http_error(_http_error(500, body))
+        assert isinstance(str(exc), str)      # must not raise
+
+    assert isinstance(str(ApiError(True, status=401)), str)
+    assert isinstance(str(ApiError(None)), str)
+
+
+def test_doctor_probes_an_endpoint_the_public_gateway_actually_allows():
+    """The probe runs from a SIGNED-OUT machine, which is when doctor is run.
+
+    /api/v1/market/status is public in stock-server but sits behind stock-web's
+    nginx JWT gate, so it 401s for anyone without a session — the check could
+    never pass before sign-in, the exact state doctor exists to diagnose.
+    """
+    import inspect
+
+    from fn2cli import cli
+
+    # Comments in cmd_doctor deliberately NAME the old path to explain why it
+    # was wrong, so assert against code lines only — otherwise the explanation
+    # trips the check it exists to justify.
+    code = "\n".join(
+        line for line in inspect.getsource(cli.cmd_doctor).splitlines()
+        if not line.lstrip().startswith("#")
+    )
+    assert "/api/v1/public-config" in code
+    assert "market/status" not in code
