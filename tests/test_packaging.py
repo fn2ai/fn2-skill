@@ -21,6 +21,12 @@ def _json(path: pathlib.Path):
     return json.loads(path.read_text(encoding="utf-8"))
 
 
+def _bash_block(path: pathlib.Path, heading: str) -> str:
+    """The first ```bash fence under `heading`, so tests run the documented text."""
+    body = path.read_text(encoding="utf-8").split(heading, 1)[1]
+    return body.split("```bash", 1)[1].split("```", 1)[0]
+
+
 class PackagingTests(unittest.TestCase):
     def test_canonical_skill_bundle_is_complete(self):
         for relative in (
@@ -93,13 +99,76 @@ class PackagingTests(unittest.TestCase):
                 version = subprocess.run(
                     [sys.executable, str(link / "scripts" / "fn2"), "--version"],
                     check=True, text=True, capture_output=True).stdout.strip()
-                self.assertEqual(version, "fn2-skill 0.4.0")
+                self.assertEqual(version, "fn2-skill 0.4.1")
 
             subprocess.run(
                 ["make", "uninstall"], cwd=ROOT, env=env,
                 check=True, text=True, capture_output=True)
             for link in links:
                 self.assertFalse(link.is_symlink(), link)
+
+    def test_documented_shell_snippets_find_every_install_layout(self):
+        """The snippets in SKILL.md and README.md must actually resolve the helper.
+
+        A marketplace install lands in a versioned directory that moves on
+        every update, so this is exactly the case a hardcoded path gets wrong.
+        """
+        snippets = {
+            "SKILL.md": _bash_block(SKILL / "SKILL.md", "## Locating the helper"),
+            "README.md": _bash_block(ROOT / "README.md", "## Running it yourself")
+            + '\nfn2 --version\n',
+        }
+        layouts = {
+            # `claude plugin install`: cache/<marketplace>/<plugin>/<version>/
+            "plugin cache": ".claude/plugins/cache/fn2/fn2/9.9.9/skills/fn2",
+            "make install": ".claude/skills/fn2",
+            "codex": ".codex/skills/fn2",
+            "pi": ".hermes/skills/fn2",
+        }
+        for source, snippet in snippets.items():
+            for name, relative in layouts.items():
+                with self.subTest(snippet=source, layout=name):
+                    with tempfile.TemporaryDirectory() as temp:
+                        home = pathlib.Path(temp) / "home"
+                        target = home / relative
+                        target.parent.mkdir(parents=True)
+                        os.symlink(SKILL, target)
+                        env = {
+                            "HOME": str(home),
+                            "PATH": os.environ.get("PATH", ""),
+                            "CODEX_HOME": str(home / ".codex"),
+                            "HERMES_HOME": str(home / ".hermes"),
+                        }
+                        # An empty cwd: the `$(pwd)` fallback must not rescue us.
+                        result = subprocess.run(
+                            ["bash", "-c", snippet], env=env, cwd=temp,
+                            text=True, capture_output=True)
+                        self.assertEqual(result.returncode, 0, result.stderr)
+                        self.assertIn("fn2", result.stdout)
+
+    def test_readme_does_not_promise_an_fn2_binary_before_defining_one(self):
+        """`claude plugin install` adds no PATH entry, so the README must not
+        hand the reader a `fn2 …` command before it says how to get one.
+
+        Only fenced shell blocks count: prose and image alt text may name the
+        command while describing it.
+        """
+        readme = (ROOT / "README.md").read_text(encoding="utf-8")
+        self.assertLess(readme.index("does not put `fn2` on your `PATH`"),
+                        readme.index("fn2() {"))
+        offset, defined = 0, False
+        for block in re.findall(r"```bash\n(.*?)```", readme, re.S):
+            start = readme.index(block, offset)
+            offset = start + len(block)
+            if "fn2() {" in block:
+                defined = True
+                continue
+            runs_fn2 = [line for line in block.splitlines()
+                        if line.strip().startswith("fn2 ")]
+            if runs_fn2:
+                self.assertTrue(
+                    defined,
+                    f"README runs {runs_fn2[0].strip()!r} before defining `fn2`")
 
     def test_make_install_refuses_to_replace_a_real_skill_directory(self):
         with tempfile.TemporaryDirectory() as temp:

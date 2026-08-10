@@ -42,6 +42,11 @@ media:
 
 install: install-claude install-codex install-pi
 	@echo "done."
+	@echo
+	@echo "note: nothing was added to PATH. Your assistant runs the helper for you."
+	@echo "      To drive it from a shell, add this to your shell rc:"
+	@echo
+	@echo "        alias fn2='python3 $(SKILL_DIR)/scripts/fn2'"
 
 install-claude:
 	@mkdir -p "$(CLAUDE_SKILLS)"

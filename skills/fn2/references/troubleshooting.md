@@ -1,5 +1,33 @@
 # Troubleshooting
 
+## `bash: fn2: command not found`
+
+Expected. Installing the plugin installs a **skill**, not a binary; nothing is
+added to `PATH`. Normally you never type `fn2` at all, you ask the assistant
+("connect my FN2 AI account", "what are my agents doing?") and it runs the
+bundled helper.
+
+To drive it from a shell yourself, define a function that resolves the helper
+at call time. A marketplace install lives under a versioned directory
+(`~/.claude/plugins/cache/<marketplace>/<plugin>/<version>/skills/fn2`) which
+moves on every update, so a hardcoded alias goes stale:
+
+```bash
+fn2() {
+  local helper
+  helper=$(ls -td "$HOME"/.claude/plugins/cache/*/*/*/skills/fn2 \
+                  "${CODEX_HOME:-$HOME/.codex}"/plugins/cache/*/*/*/skills/fn2 \
+                  "$HOME"/.claude/skills/fn2 \
+                  "${CODEX_HOME:-$HOME/.codex}"/skills/fn2 \
+                  "${HERMES_HOME:-$HOME/.hermes}"/skills/fn2 2>/dev/null | head -1)
+  [ -n "$helper" ] || { echo "fn2 helper not found; install the plugin first" >&2; return 1; }
+  python3 "$helper/scripts/fn2" "$@"
+}
+```
+
+If that reports "helper not found", confirm the plugin is installed with
+`claude plugin list` and that the path above exists.
+
 ## "not signed in"
 
 No credential was found. Run `fn2 auth login` (browser flow, no secret

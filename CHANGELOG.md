@@ -5,6 +5,29 @@ Notable changes to the FN2 AI skill. The format follows
 [semantic versioning](https://semver.org/spec/v2.0.0.html) on the CLI's
 user-visible surface.
 
+## [0.4.1] - 2026-08-10
+
+### Fixed
+
+- A marketplace plugin install was unreachable when the harness did not expand
+  `${CLAUDE_SKILL_DIR}`. Plugins land in
+  `~/.claude/plugins/cache/<marketplace>/<plugin>/<version>/skills/fn2`, and
+  none of the fallback locations in `SKILL.md` covered it, so the helper simply
+  was not found. The fallback list now globs the plugin cache, newest install
+  first.
+- The README told you to run `fn2 auth login` straight after
+  `claude plugin install`, but installing a plugin adds nothing to `PATH`, so
+  the only possible outcome was `bash: fn2: command not found`. Connecting is
+  now something you ask the assistant to do, with a separate section for
+  driving the CLI yourself. `make install` prints the same caveat.
+- Both documented snippets are now executed by the test suite against all four
+  install layouts (plugin cache, `make install`, Codex, Pi), so they cannot go
+  stale silently.
+
+### Added
+
+- A `fn2: command not found` entry in the troubleshooting reference.
+
 ## [0.4.0] - 2026-08-10
 
 ### Added
@@ -81,6 +104,7 @@ user-visible surface.
 - First release: start, watch, and schedule FN2 AI research agents from Claude
   Code, Codex, or Pi.
 
+[0.4.1]: https://github.com/fn2ai/fn2-skill/compare/v0.4.0...v0.4.1
 [0.4.0]: https://github.com/fn2ai/fn2-skill/compare/v0.3.0...v0.4.0
 [0.3.0]: https://github.com/fn2ai/fn2-skill/releases/tag/v0.3.0
 [0.2.1]: https://github.com/fn2ai/fn2-skill/compare/v0.2.0...v0.2.1

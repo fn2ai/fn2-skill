@@ -58,14 +58,20 @@ pasted, printed, or sent to chat.
 
 ## Locating the helper
 
-The bundled helper lives at `<skill-dir>/scripts/fn2`. Resolve `<skill-dir>`
-from the path of this loaded `SKILL.md`; do not assume the current working
-directory. Claude Code expands `${CLAUDE_SKILL_DIR}` to this directory. The
-fallback locations below cover standalone installs in the supported harnesses:
+The bundled helper lives at `<skill-dir>/scripts/fn2`. There is **no `fn2` on
+`PATH`**; always invoke it as `python3 "$FN2"`. Resolve `<skill-dir>` from the
+path of this loaded `SKILL.md`; do not assume the current working directory.
+Claude Code expands `${CLAUDE_SKILL_DIR}` to this directory. The fallbacks
+cover a marketplace plugin install (whose directory carries the version, so it
+moves on every update) and standalone installs:
 
 ```bash
 FN2_SKILL_DIR="${CLAUDE_SKILL_DIR:-}"
-for d in "$FN2_SKILL_DIR" "$HOME/.claude/skills/fn2" \
+for d in "$FN2_SKILL_DIR" \
+         $(ls -td "$HOME"/.claude/plugins/cache/*/*/*/skills/fn2 \
+                  "${CODEX_HOME:-$HOME/.codex}"/plugins/cache/*/*/*/skills/fn2 \
+                  2>/dev/null) \
+         "$HOME/.claude/skills/fn2" \
          "${CODEX_HOME:-$HOME/.codex}/skills/fn2" "$HOME/.agents/skills/fn2" \
          "${HERMES_HOME:-$HOME/.hermes}/skills/fn2" "$(pwd)"; do
   [ -f "$d/scripts/fn2" ] && FN2="$d/scripts/fn2" && break
@@ -73,6 +79,9 @@ done
 test -n "${FN2:-}" || { echo "fn2 helper not found" >&2; exit 1; }
 python3 "$FN2" --help
 ```
+
+`ls -td` puts the most recently installed copy first, so an upgraded plugin
+wins over a stale cached version.
 
 ## Command cheatsheet
 

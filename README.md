@@ -13,7 +13,7 @@
 
 **Ask [FN2 AI](https://fn2.ai) anything about public markets, then put the good questions on a schedule. From your terminal.**
 
-[Install](#install) · [Connect](#connect-your-account) · [In use](#in-use) · [Commands](#commands) · [Scheduling](#scheduling-in-everyday-words) · [Security](#security-and-configuration)
+[Install](#install) · [Connect](#connect-your-account) · [Run it yourself](#running-it-yourself) · [In use](#in-use) · [Commands](#commands) · [Scheduling](#scheduling-in-everyday-words) · [Security](#security-and-configuration)
 
 </div>
 
@@ -78,37 +78,57 @@ ln -s ~/.fn2-skill/skills/fn2 "${HERMES_HOME:-$HOME/.hermes}/skills/fn2"
 `make install` from a checkout links the canonical skill into Claude, Codex,
 and Pi at once.
 
-<details>
-<summary><b>Driving it yourself from a shell</b></summary>
-
-The assistant resolves the helper for you. To run the same commands by hand,
-which is what every screenshot below shows, add an alias:
-
-```bash
-alias fn2='python3 ~/.claude/skills/fn2/scripts/fn2'   # or ~/.codex/skills, ~/.hermes/skills
-```
-
-Output is colourised when it is going to a terminal and plain everywhere else.
-`--color never` and `NO_COLOR` both turn it off; `--json` is never colourised.
-
-</details>
+> [!NOTE]
+> **Installing the plugin does not put `fn2` on your `PATH`.** It installs a
+> skill your assistant uses; you talk to the assistant, not to a shell command.
+> If you want the command anyway, see
+> [running it yourself](#running-it-yourself) below.
 
 ## Connect your account
 
-No secret copying. A browser device flow, the same shape as `gh auth login`:
+Ask your assistant, in as many words:
 
-```bash
-fn2 auth login
-```
+> *"connect my FN2 AI account"*
+
+It runs the device flow for you. No secret copying: the terminal prints a short
+code and opens `https://fn2.ai/start`. Sign in (or sign up), type the code,
+click **Approve**, done. The CLI receives a scoped, revocable device credential
+and stores it in the macOS Keychain (or an owner-only file on Linux). You never
+see or copy a secret.
 
 <p align="center">
   <img src="docs/media/auth-login.png" alt="fn2 auth login prints a short code, opens fn2.ai/start, and stores a scoped device credential in the macOS Keychain" width="860">
 </p>
 
-The terminal prints a short code and opens `https://fn2.ai/start`. Sign in (or
-sign up), type the code, click **Approve**, done. The CLI receives a scoped,
-revocable device credential and stores it in the macOS Keychain (or an
-owner-only file on Linux). You never see or copy a secret.
+## Running it yourself
+
+Every screenshot in this README is a command you can run, once the shell knows
+where the helper lives. A plugin install puts it under a versioned directory
+that changes on every update, so resolve it at call time rather than hardcoding
+a path. Paste this into `~/.zshrc` or `~/.bashrc`:
+
+```bash
+fn2() {
+  local helper
+  helper=$(ls -td "$HOME"/.claude/plugins/cache/*/*/*/skills/fn2 \
+                  "${CODEX_HOME:-$HOME/.codex}"/plugins/cache/*/*/*/skills/fn2 \
+                  "$HOME"/.claude/skills/fn2 \
+                  "${CODEX_HOME:-$HOME/.codex}"/skills/fn2 \
+                  "${HERMES_HOME:-$HOME/.hermes}"/skills/fn2 2>/dev/null | head -1)
+  [ -n "$helper" ] || { echo "fn2 helper not found; install the plugin first" >&2; return 1; }
+  python3 "$helper/scripts/fn2" "$@"
+}
+```
+
+Then:
+
+```bash
+fn2 auth login     # same device flow, driven by you
+fn2 doctor         # confirm where the credential lives and that fn2.ai is reachable
+```
+
+Output is colourised when it is going to a terminal and plain everywhere else.
+`--color never` and `NO_COLOR` both turn it off; `--json` is never colourised.
 
 ## In use
 
