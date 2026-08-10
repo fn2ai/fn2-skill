@@ -136,7 +136,7 @@ def keychain_delete(account: str) -> bool:
 # ---------------------------------------------------------------------------
 def _read_owner_json(path: Path) -> Dict[str, Any]:
     if path.is_symlink():
-        _warn(f"{path} is a symlink — refusing to read it. Remove the link and retry.")
+        _warn(f"{path} is a symlink; refusing to read it. Remove the link and retry.")
         return {}
     try:
         mode = os.stat(path).st_mode & 0o777
@@ -175,7 +175,7 @@ def _write_owner_json(path: Path, payload: Dict[str, Any]) -> Path:
     except OSError as exc:
         raise StorageError(f"Cannot stat {home}: {exc}")
     if stat.S_ISLNK(st.st_mode):
-        raise StorageError(f"{home} is a symlink — refusing to write into it.")
+        raise StorageError(f"{home} is a symlink; refusing to write into it.")
     if st.st_mode & 0o022:
         raise StorageError(
             f"{home} is group/world-writable (mode {st.st_mode & 0o777:03o}). "
@@ -190,7 +190,7 @@ def _write_owner_json(path: Path, payload: Dict[str, Any]) -> Path:
     except OSError as exc:
         if exc.errno in (errno.ELOOP, errno.EMLINK):
             raise StorageError(
-                f"{path} is a symlink — refusing to write through it. Remove the link and retry."
+                f"{path} is a symlink; refusing to write through it. Remove the link and retry."
             )
         raise
     # os.fdopen takes ownership of fd and closes it on context exit (incl. errors).

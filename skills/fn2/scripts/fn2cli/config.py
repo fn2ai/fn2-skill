@@ -138,14 +138,14 @@ def enforce_base_url(base_url: str) -> None:
         return
     if verdict == "dev-allowed":
         print(
-            f"WARNING: FN2_ALLOW_DEV_BASE=1 — talking to UNPINNED endpoint {base_url}.\n"
-            "         Your fn2 credential will be sent there. Only do this against a\n"
+            f"WARNING: FN2_ALLOW_DEV_BASE=1. Talking to UNPINNED endpoint {base_url}.\n"
+            "         Your FN2 AI credential will be sent there. Only do this against a\n"
             "         development server you control.",
             file=sys.stderr,
         )
         return
     raise SystemExit(
-        f"error: refusing endpoint {base_url!r} — fn2 credentials are only sent to "
+        f"error: refusing endpoint {base_url!r}. FN2 AI credentials are only sent to "
         f"https://{PINNED_HOST} (or *.{PINNED_HOST}).\n"
         "For local development against a server you control, set FN2_ALLOW_DEV_BASE=1."
     )

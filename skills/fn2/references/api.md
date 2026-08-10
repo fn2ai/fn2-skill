@@ -1,14 +1,14 @@
-# fn2 public API — the contract this skill maps to
+# FN2 AI public API: the contract this skill maps to
 
 Base URL: `https://fn2.ai` (the CLI pins the origin to `https://fn2.ai` /
 `*.fn2.ai`; `FN2_BASE_URL` overrides within that pin). All routes below are
 under `/api/v1`. Authenticate with a bearer credential:
 
 - a **device token** (`fn2d_…`) issued by the device-authorization flow below
-  — the default, obtained via `fn2 auth login`; scoped, 90-day expiry,
+  (the default, obtained via `fn2 auth login`; scoped, 90-day expiry,
   revocable per device; or
-- a personal **API key** (`fn2_…`) created in the fn2 web app
-  (Preferences → Developer) — the advanced/CI fallback.
+- a personal **API key** (`fn2_…`) created in the FN2 AI web app
+  (Preferences → Developer): the advanced/CI fallback.
 
 Either is sent as `Authorization: Bearer …` and needs the **`agents`** scope
 for agent routes and **`models`** for the model list.
@@ -48,7 +48,7 @@ credential. These routes are unauthenticated (except `logout`) and return
 | `status` | Meaning |
 |---|---|
 | `authorization_pending` | keep polling at `interval` seconds |
-| `slow_down` | polled too fast — the response carries the new, larger `interval` |
+| `slow_down` | polled too fast; the response carries the new, larger `interval` |
 | `approved` | one-time payload: `access_token` (`fn2d_…`), `token_type`, `scopes`, `device_id`, `expires_at`, `account.email_masked` |
 | `denied` | the user clicked Deny |
 | `expired` | the request aged out, was already redeemed, or the code is unknown |
@@ -59,7 +59,7 @@ The `approved` payload is released exactly once; any later poll returns
 ### `logout`
 
 `POST /skill/device-auth/logout` with the device token as the bearer revokes
-that device. A `401` means the credential was already revoked or expired — the
+that device. A `401` means the credential was already revoked or expired, and the
 CLI treats that as success. Devices can also be revoked in the web app under
 **Preferences → Developer → Connected Devices** (per-device or revoke-all);
 revocation takes effect within a few minutes everywhere.
@@ -103,7 +103,7 @@ again. Accounts are capped at 10 active devices.
 - **Market schedules** (`market_open` / `market_close`, or one-shot
   `market_event: "open" | "close"`) take a signed `offset_minutes` (e.g. `-30`
   = 30 min before). The **server** resolves the XNYS calendar (holidays, early
-  closes, DST) — the client never computes a market date. An invalid/unresolvable
+  closes, DST). The client never computes a market date. An invalid/unresolvable
   market request returns `400 {"code": "market_calendar"}`.
 - **`delivery: {email: true}`** attaches on-complete email to the account's
   **own verified address** (opt-out honored). An arbitrary recipient is never
@@ -127,7 +127,7 @@ quota (`429`). A per-key `allowed_models` restriction is enforced (`403
   separate from `status`.
 - **Cursor pagination.** `GET /agents/{id}/runs?cursor=<opaque>` (from
   `next_cursor`); `limit`/`offset` still work.
-- **Errors** are a superset of `{error, code}` — also `request_id` (echoed as
+- **Errors** are a superset of `{error, code}`, also `request_id` (echoed as
   `X-Request-Id`), `retryable`, `retry_after`, and a `type` doc URL.
 
 ## Runs
@@ -162,14 +162,14 @@ A run object:
 ## Reading results
 
 Run results are available through `GET /agents/{id}/runs/{run_id}`
-(`fn2 result`) and in the fn2 web app. Email delivery is opt-in per agent via
+(`fn2 result`) and in the FN2 AI web app. Email delivery is opt-in per agent via
 `delivery: {email: true}` on create, mapped to the account's own verified email
 (the server resolves the address and honors opt-out; no recipient is ever sent
 by the client). Additional delivery channels/rules are configured in the web app.
 
-## MCP connector — the same API, from an MCP client
+## MCP connector: the same API, from an MCP client
 
-fn2 also speaks MCP. Paste `https://mcp.fn2.ai/mcp` into an MCP client's "add a
+FN2 AI also speaks MCP. Paste `https://mcp.fn2.ai/mcp` into an MCP client's "add a
 custom connector" dialog (Claude, Cursor, MCP Inspector) and it runs an OAuth 2.1
 authorization-code + PKCE flow: the client registers itself, the user approves the
 grant in the browser at `https://fn2.ai/authorize`, and the client receives a
@@ -197,14 +197,14 @@ doors onto one API.
 | `get_fred_series` | `GET /research/fred` | `research` |
 | `get_company_financials` | `GET /research/financials` | `research` |
 
-Scopes are the same vocabulary: `agents`, `models`, `research`, and — unlike a
-device token — `chat`, which `run_chat` needs. The client sees only the tools its
+Scopes are the same vocabulary: `agents`, `models`, `research`, and (unlike a
+device token) `chat`, which `run_chat` needs. The client sees only the tools its
 granted scopes can actually call. A client that requests no `scope` at all gets
 `agents models research`; `chat` is opt-in.
 
 ### The research surface and its weekly allowance
 
-The five `research` tools are read-only market data — earnings-call text, prices,
+The five `research` tools are read-only market data: earnings-call text, prices,
 FRED series, SEC-derived financials, and the account's own saved notes. They spend
 no model tokens, so they are **not** metered against the monthly token quota. They
 draw on a separate **weekly request allowance** that resets Monday 00:00 UTC and
@@ -222,7 +222,7 @@ depends on the plan:
 `resets_at`) beside the token block, so a client can show what is left before a
 call fails. When it runs out the tool returns `429` with
 `code: "api_quota_exceeded"` and an `error` message naming the plan, the limit,
-the reset date and the upgrade URL — **relay it as written rather than retrying**;
+the reset date and the upgrade URL. **Relay it as written rather than retrying**;
 the number does not change until the reset. A failed call does not spend the
 allowance: a `404` for an unknown ticker and a `503` from an unavailable index
 are both free.
@@ -234,4 +234,4 @@ and do not point the CLI at the MCP host. Grants are revoked in the web app unde
 **Preferences → Developer → Connected Apps** (per-app or revoke-all).
 
 Full protocol, security and cross-region contract: `docs/public-mcp-server.md` in
-the fn2 server repo (stock-server).
+the FN2 AI server repo (stock-server).

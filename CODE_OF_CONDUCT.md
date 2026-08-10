@@ -35,7 +35,7 @@ remove, edit, or reject comments, commits, code, issues, and other
 contributions that are not aligned with this code of conduct.
 
 Report unacceptable behavior to the maintainers at
-<https://github.com/fn2ai/fn2-skill/issues/new/choose> — or privately through
+<https://github.com/fn2ai/fn2-skill/issues/new/choose>, or privately through
 [GitHub Security Advisories](https://github.com/fn2ai/fn2-skill/security/advisories/new)
 if the report itself is sensitive. All complaints will be reviewed and
 investigated promptly and fairly, and the reporter's privacy will be respected.

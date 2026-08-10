@@ -58,7 +58,7 @@ jobs:
       - name: Documentation media is present
         run: |
           missing=0
-          for name in banner social-card hero-assistant auth-login agents \
+          for name in banner social-card ask-anything alerts auth-login agents \
                       status result scheduling account security; do
             test -f "docs/media/$name.png" || { echo "missing docs/media/$name.png" >&2; missing=1; }
           done

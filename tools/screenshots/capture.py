@@ -115,12 +115,18 @@ class DemoBackend:
                 return d["queued_run"]
             if tail[1] == "runs":
                 if len(tail) > 2:
-                    return d["run_detail"]
+                    detail = d["run_detail"]
+                    return detail.get(tail[2], d["runs"][0])
                 return {"runs": d["runs"], "has_more": True}
         raise AssertionError(f"no demo fixture for {method} {path}")
 
     def _create(self, body: Dict[str, Any]) -> Dict[str, Any]:
         created = dict(self.data["created_agent"])
+        if not body.get("schedule"):
+            # A prompt with no cadence is a one-off question, which the demo
+            # answers from the "ask" run.
+            created["id"] = self.data["ask_agent_id"]
+            return created
         ids = self.data["created_ids"]
         created["id"] = ids[self._created % len(ids)]
         self._created += 1

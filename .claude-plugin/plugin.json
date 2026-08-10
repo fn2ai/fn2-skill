@@ -1,8 +1,8 @@
 {
   "name": "fn2",
-  "displayName": "fn2 Agents",
-  "version": "0.3.0",
-  "description": "Start, monitor, and schedule fn2.ai autonomous research agents for public markets from your terminal assistant.",
+  "displayName": "FN2 AI Agents",
+  "version": "0.4.0",
+  "description": "Start, monitor, and schedule FN2 AI autonomous research agents for public markets from your terminal assistant.",
   "author": {
     "name": "fn2",
     "url": "https://fn2.ai"

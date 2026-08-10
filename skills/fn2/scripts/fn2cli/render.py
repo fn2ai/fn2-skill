@@ -1,7 +1,10 @@
-"""Human-readable and JSON rendering. Presentation only — no network, no logic.
+"""Human-readable and JSON rendering. Presentation only, no network, no logic.
 
-Every view degrades gracefully: the fn2 API may add or rename fields, so we read
-defensively and never crash on a missing key.
+Every view degrades gracefully: the FN2 AI API may add or rename fields, so we
+read defensively and never crash on a missing key.
+
+Colour goes through :mod:`style`, which is a no-op unless stdout is a terminal,
+so piped and ``--json`` output stays plain text.
 """
 
 from __future__ import annotations
@@ -10,6 +13,10 @@ import datetime as dt
 import json
 import textwrap
 from typing import Any, Dict, List, Optional, Sequence
+
+from . import style
+
+NONE = "-"
 
 
 def emit_json(obj: Any) -> None:
@@ -25,7 +32,7 @@ def _first(d: Dict[str, Any], *keys: str, default: Any = None) -> Any:
 
 def short_id(value: Any, width: int = 8) -> str:
     text = str(value or "")
-    return text[:width] if text else "—"
+    return text[:width] if text else NONE
 
 
 def now_iso() -> str:
@@ -35,7 +42,7 @@ def now_iso() -> str:
 
 def fmt_ts(value: Any) -> str:
     if not value:
-        return "—"
+        return NONE
     try:
         parsed = dt.datetime.fromisoformat(str(value).replace("Z", "+00:00"))
     except ValueError:
@@ -68,6 +75,8 @@ def rel_ts(value: Any) -> str:
 
 
 def table(headers: Sequence[str], rows: Sequence[Sequence[Any]]) -> None:
+    """Print an aligned table. Cells may already carry ANSI styling: widths are
+    measured on the visible text, so colour never shifts a column."""
     if not rows:
         print("(none)")
         return
@@ -78,16 +87,16 @@ def table(headers: Sequence[str], rows: Sequence[Sequence[Any]]) -> None:
         cells = [str(c) for c in row]
         text_rows.append(cells)
         for i, cell in enumerate(cells):
-            widths[i] = max(widths[i], len(cell))
-    line = "  ".join(h.ljust(widths[i]) for i, h in enumerate(cols))
-    print(line.rstrip())
-    print("  ".join("-" * widths[i] for i in range(len(cols))))
+            widths[i] = max(widths[i], style.width(cell))
+    print(style.head("  ".join(h.ljust(widths[i]) for i, h in enumerate(cols)).rstrip()))
+    print(style.label("  ".join("-" * widths[i] for i in range(len(cols)))))
     for cells in text_rows:
-        print("  ".join(cells[i].ljust(widths[i]) for i in range(len(cells))).rstrip())
+        line = "  ".join(style.pad(cells[i], widths[i]) for i in range(len(cells)))
+        print(line.rstrip())
 
 
 def _market_phrase(freq: str, offset: Any) -> str:
-    """"market_open" + -30 -> "30m before open". The server owns the calendar."""
+    """"market_open" + -30 gives "30m before open". The server owns the calendar."""
     boundary = "open" if freq == "market_open" else "close"
     try:
         minutes = int(offset)
@@ -115,7 +124,7 @@ def describe_schedule(agent: Dict[str, Any]) -> str:
             return str(freq)
     if agent.get("recurring") is False:
         return "one-off"
-    return "—"
+    return NONE
 
 
 # -- views ---------------------------------------------------------------
@@ -125,35 +134,40 @@ def agents(data: Dict[str, Any]) -> None:
     rows = []
     for a in items:
         rows.append([
-            short_id(_first(a, "id", "agent_id")),
+            style.paint(short_id(_first(a, "id", "agent_id")), "cyan"),
             (_first(a, "name", default="Agent") or "Agent")[:32],
-            _first(a, "status", default="?"),
+            style.status(_first(a, "status", default="?")),
             describe_schedule(a),
-            rel_ts(_first(a, "last_run_at", "last_run")),
+            style.label(rel_ts(_first(a, "last_run_at", "last_run"))),
             _first(a, "run_count", "runs", default=0),
         ])
     table(["ID", "NAME", "STATUS", "SCHEDULE", "LAST RUN", "RUNS"], rows)
     total = data.get("total") if isinstance(data, dict) else None
     if total is not None and total > len(items):
-        print(f"\nshowing {len(items)} of {total} — narrow with --status or page with --offset")
+        print("\n" + style.label(
+            f"showing {len(items)} of {total}; narrow with --status or page "
+            "with --offset"))
 
 
 def agent_detail(a: Dict[str, Any]) -> None:
-    print(f"id         {_first(a, 'id', 'agent_id')}")
-    print(f"name       {_first(a, 'name', default='Agent')}")
-    print(f"status     {_first(a, 'status', default='?')}")
-    print(f"schedule   {describe_schedule(a)}")
+    def row(name: str, value: Any) -> None:
+        print(f"{style.label(name.ljust(11))}{value}")
+
+    row("id", style.paint(str(_first(a, "id", "agent_id")), "cyan"))
+    row("name", _first(a, "name", default="Agent"))
+    row("status", style.status(_first(a, "status", default="?")))
+    row("schedule", describe_schedule(a))
     if _first(a, "model", default=None) or _model_of(a):
-        print(f"model      {_first(a, 'model', default=None) or _model_of(a)}")
+        row("model", _first(a, "model", default=None) or _model_of(a))
     labels = _first(a, "labels", default=None)
     if labels:
-        print(f"labels     {', '.join(labels)}")
-    print(f"runs       {_first(a, 'run_count', 'runs', default=0)}")
-    print(f"last run   {fmt_ts(_first(a, 'last_run_at', 'last_run'))}")
-    print(f"created    {fmt_ts(a.get('created_at'))}")
+        row("labels", ", ".join(labels))
+    row("runs", _first(a, "run_count", "runs", default=0))
+    row("last run", fmt_ts(_first(a, "last_run_at", "last_run")))
+    row("created", fmt_ts(a.get("created_at")))
     prompt = _first(a, "prompt", default=None) or _prompt_of(a)
     if prompt:
-        print("\nprompt:")
+        print("\n" + style.label("prompt:"))
         print(textwrap.indent(textwrap.fill(prompt, width=88), "  "))
 
 
@@ -179,70 +193,77 @@ def runs(data: Dict[str, Any]) -> None:
     rows = []
     for r in items:
         rows.append([
-            short_id(_first(r, "run_id", "id", "task_id"), 12),
-            _first(r, "status", default="?"),
-            fmt_ts(_first(r, "started_at", "created_at")),
+            style.paint(short_id(_first(r, "run_id", "id", "task_id"), 12), "cyan"),
+            style.status(_first(r, "status", default="?")),
+            style.label(fmt_ts(_first(r, "started_at", "created_at"))),
             _duration(r),
         ])
     table(["RUN ID", "STATUS", "STARTED", "DURATION"], rows)
     if isinstance(data, dict) and data.get("has_more"):
-        print("\nmore runs available — page with --offset")
+        print("\n" + style.label("more runs available; page with --offset"))
 
 
 def _duration(r: Dict[str, Any]) -> str:
     secs = r.get("duration_seconds")
     if secs is None:
-        return "—"
+        return NONE
     try:
         secs = float(secs)
     except (TypeError, ValueError):
-        return "—"
+        return NONE
     if secs < 60:
         return f"{secs:.0f}s"
     return f"{secs / 60:.1f}m"
 
 
 def run_result(r: Dict[str, Any]) -> None:
-    print(f"run       {_first(r, 'run_id', 'id')}")
-    print(f"status    {_first(r, 'status', default='?')}")
-    print(f"started   {fmt_ts(_first(r, 'started_at', 'created_at'))}")
-    print(f"finished  {fmt_ts(r.get('completed_at'))}")
-    print(f"duration  {_duration(r)}")
+    def row(name: str, value: Any) -> None:
+        print(f"{style.label(name.ljust(10))}{value}")
+
+    row("run", style.paint(str(_first(r, 'run_id', 'id')), "cyan"))
+    row("status", style.status(_first(r, "status", default="?")))
+    row("started", fmt_ts(_first(r, "started_at", "created_at")))
+    row("finished", fmt_ts(r.get("completed_at")))
+    row("duration", _duration(r))
     if r.get("model"):
-        print(f"model     {r['model']}")
-    usage = r.get("usage")
-    if isinstance(usage, dict):
-        print(f"tokens    in {usage.get('input_tokens', '?')} / "
-              f"out {usage.get('output_tokens', '?')} / "
-              f"total {usage.get('total_tokens', '?')}")
+        row("model", r["model"])
+    usage_info = r.get("usage")
+    if isinstance(usage_info, dict):
+        row("tokens", f"in {usage_info.get('input_tokens', '?')} / "
+                      f"out {usage_info.get('output_tokens', '?')} / "
+                      f"total {usage_info.get('total_tokens', '?')}")
     error = r.get("error")
     if isinstance(error, dict) and (error.get("message") or error.get("code")):
-        print(f"\nerror [{error.get('code', 'error')}]: {error.get('message', '')}")
+        print("\n" + style.bad(f"error [{error.get('code', 'error')}]: "
+                                f"{error.get('message', '')}"))
     result = r.get("result")
     text = result.get("text") if isinstance(result, dict) else result
     if text:
-        print("\nresult:")
+        print("\n" + style.label("result:"))
         print(textwrap.indent(str(text).strip(), "  "))
 
 
 def usage(u: Dict[str, Any]) -> None:
     # Label column is 11 wide to line up with `whoami`'s endpoint/credential
-    # rows and with `auth status` — these views print next to each other.
-    print(f"plan       {u.get('plan', '?')}")
+    # rows and with `auth status`: these views print next to each other.
+    def row(name: str, value: Any) -> None:
+        print(f"{style.label(name.ljust(11))}{value}")
+
+    row("plan", style.paint(str(u.get("plan", "?")), "bold"))
     tokens = u.get("tokens")
     if isinstance(tokens, dict):
         if tokens.get("unlimited"):
-            print(f"tokens     {tokens.get('used', 0):,} used (unlimited)")
+            row("tokens", f"{tokens.get('used', 0):,} used (unlimited)")
         else:
-            print(f"tokens     {tokens.get('used', 0):,} used / "
-                  f"{tokens.get('limit', 0):,} limit / "
-                  f"{tokens.get('remaining', 0):,} left")
+            row("tokens", f"{tokens.get('used', 0):,} used / "
+                          f"{tokens.get('limit', 0):,} limit / "
+                          f"{tokens.get('remaining', 0):,} left")
         if tokens.get("resets_at"):
-            print(f"resets     {fmt_ts(tokens['resets_at'])}")
+            row("resets", fmt_ts(tokens["resets_at"]))
     key = u.get("api_key")
     if isinstance(key, dict):
-        print(f"key        {key.get('name', '?')} "
-              f"({key.get('total_requests', 0)} requests)")
+        row("key", f"{key.get('name', '?')} "
+                   f"({key.get('total_requests', 0)} requests)")
     device = u.get("device")
     if isinstance(device, dict):
         scopes = device.get("scopes")
@@ -251,7 +272,7 @@ def usage(u: Dict[str, Any]) -> None:
             parts.append(f"scopes: {', '.join(scopes)}")
         if device.get("expires_at"):
             parts.append(f"expires {fmt_ts(device['expires_at'])}")
-        print(f"device     {' — '.join(parts)}")
+        row("device", " · ".join(parts))
 
 
 def models(payload: Any) -> None:
@@ -261,10 +282,10 @@ def models(payload: Any) -> None:
         rows.append([
             _first(m, "model_id", "id", default="?"),
             (_first(m, "display_name", "name", default="") or "")[:30],
-            _first(m, "model_class", default="—"),
-            # No required_plan means every plan can run it — say so rather
+            _first(m, "model_class", default=NONE),
+            # No required_plan means every plan can run it: say so rather
             # than leaving a column of blanks.
             _first(m, "required_plan", default="any") or "any",
-            "★" if m.get("is_default") else "",
+            style.paint("★", "yellow") if m.get("is_default") else "",
         ])
     table(["MODEL ID", "NAME", "CLASS", "PLAN", "DEFAULT"], rows)

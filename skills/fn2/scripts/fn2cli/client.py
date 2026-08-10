@@ -80,7 +80,7 @@ class Client:
         if auth:
             if not self.api_key:
                 raise AuthError(
-                    "no fn2 API key configured — run `fn2 login` first",
+                    "no FN2 AI credential configured; run `fn2 auth login` first",
                     status=401, code="no_credentials",
                 )
             headers["Authorization"] = f"Bearer {self.api_key}"

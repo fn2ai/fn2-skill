@@ -1,6 +1,6 @@
 version: 2
 updates:
-  # The skill itself has no dependencies to update — only CI actions do.
+  # The skill itself has no dependencies to update; only CI actions do.
   - package-ecosystem: github-actions
     directory: "/"
     schedule:

@@ -510,7 +510,7 @@ class AuthLifecycleCliTests(_EnvSandbox):
             rc, out, err = _run_cli(["auth", "logout", "--revoke"])
         self.assertEqual(rc, 0)
         self.assertEqual(logout.call_count, 1)
-        self.assertIn("revoked on fn2", out)
+        self.assertIn("revoked on FN2 AI", out)
         self.assertFalse(storage.credentials_path().exists())
 
     def test_logout_revoke_tolerates_transient_error_and_still_clears(self):

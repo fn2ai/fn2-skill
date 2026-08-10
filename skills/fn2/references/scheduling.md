@@ -41,7 +41,7 @@ treated as a single future run (`run_at`):
   The client sends only the phase (`market_open`/`market_close` or a one-shot
   `market_event`) and a signed `offset_minutes`; it never computes a market date.
 - **"Before the open" = `offset_minutes -30`**, 30 minutes ahead of the 09:30
-  bell, so a brief is ready (via `fn2 result` and the fn2 web app) before trading
+  bell, so a brief is ready (via `fn2 result` and the FN2 AI web app) before trading
   starts. "After the close" = `offset_minutes 5`.
 - **Timezone maths for one-off runs** needs Python's `zoneinfo` (standard since
   3.9). On the rare build without it, use a recurring cadence (server-side

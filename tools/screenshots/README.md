@@ -8,7 +8,7 @@ python3 tools/screenshots/generate.py agents     # one scene
 ```
 
 Requirements: a Chromium/Chrome binary and ImageMagick's `convert`. None of
-this is needed to *use* the skill — it only rebuilds the images in the README.
+this is needed to *use* the skill; it only rebuilds the images in the README.
 
 ## Why it is not a mockup
 
@@ -22,7 +22,7 @@ shell would. Two seams are swapped, and only two:
 
 Argument parsing, cadence translation, storage, redaction, table layout, and
 every string in the screenshots come from the real code. If the CLI's output
-changes, re-running `generate.py` changes the screenshots — they cannot drift.
+changes, re-running `generate.py` changes the screenshots, so they cannot drift.
 
 The payloads in `fixtures.py` are real fn2 API response shapes with demo
 identifiers substituted, and timestamps anchored to the most recent market

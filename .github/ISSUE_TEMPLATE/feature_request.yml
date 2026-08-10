@@ -23,5 +23,5 @@ body:
       label: Where does it belong
       options:
         - label: the CLI/skill (this repository)
-        - label: the fn2 API or web app (we will route it)
+        - label: the FN2 AI API or web app (we will route it)
         - label: not sure

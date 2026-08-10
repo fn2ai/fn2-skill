@@ -1,6 +1,6 @@
 # docs/media
 
-Generated — do not hand-edit. Rebuild with `make media`
+Generated; do not hand-edit. Rebuild with `make media`
 (or `python3 tools/screenshots/generate.py`). See
 [tools/screenshots](../../tools/screenshots) for how the capture works.
 
@@ -8,7 +8,8 @@ Generated — do not hand-edit. Rebuild with `make media`
 |---|---|
 | `banner.png` | README header lockup |
 | `social-card.png` | 1280×640 repository social preview |
-| `hero-assistant.png` | Claude Code creating a scheduled agent from a plain-English request |
+| `ask-anything.png` | Claude Code answering an earnings-call question through a one-off agent |
+| `alerts.png` | Claude Code turning "notify me when AAPL drops 5%" into a scheduled agent |
 | `auth-login.png` | `fn2 auth login` device flow + `fn2 auth status` |
 | `agents.png` | `fn2 agents` |
 | `status.png` | `fn2 status <id>` |

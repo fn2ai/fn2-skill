@@ -18,7 +18,7 @@ _SCRIPTS = (pathlib.Path(__file__).resolve().parent.parent /
             "skills" / "fn2" / "scripts")
 sys.path.insert(0, str(_SCRIPTS))
 
-from fn2cli import api, config, render, schedule  # noqa: E402
+from fn2cli import api, config, render, schedule, style  # noqa: E402
 from fn2cli.client import ApiError, AuthError, Client  # noqa: E402
 
 
@@ -424,3 +424,50 @@ def test_doctor_probes_an_endpoint_the_public_gateway_actually_allows():
     )
     assert "/api/v1/public-config" in code
     assert "market/status" not in code
+
+
+# ---------------------------------------------------------------------------
+# style (colour is opt-in and never changes column widths)
+# ---------------------------------------------------------------------------
+class StyleTests(unittest.TestCase):
+    def tearDown(self):
+        style.set_mode("auto")
+
+    def test_off_when_not_a_tty(self):
+        style.set_mode("auto")
+        buffer = io.StringIO()  # StringIO.isatty() is False
+        with contextlib.redirect_stdout(buffer):
+            self.assertEqual(style.paint("hi", "red"), "hi")
+
+    def test_no_color_env_beats_a_tty(self):
+        style.set_mode("auto")
+        with mock.patch.dict(os.environ, {"NO_COLOR": "1"}):
+            with mock.patch("sys.stdout") as fake:
+                fake.isatty.return_value = True
+                self.assertEqual(style.paint("hi", "red"), "hi")
+
+    def test_always_emits_and_strips_back(self):
+        style.set_mode("always")
+        painted = style.paint("active", "green")
+        self.assertNotEqual(painted, "active")
+        self.assertEqual(style.strip(painted), "active")
+        self.assertEqual(style.width(painted), len("active"))
+
+    def test_columns_ignore_escape_sequences(self):
+        style.set_mode("always")
+        buffer = io.StringIO()
+        with contextlib.redirect_stdout(buffer):
+            render.table(["A", "B"], [[style.paint("xx", "green"), "1"],
+                                      ["yyyy", "2"]])
+        rows = [style.strip(line) for line in buffer.getvalue().splitlines()]
+        # Column B starts at the same offset on every row.
+        self.assertEqual(rows[2].index("1"), rows[3].index("2"))
+
+    def test_json_output_is_never_colourised(self):
+        from fn2cli import cli
+        with mock.patch("sys.stdout") as fake:
+            fake.isatty.return_value = True
+            with self.assertRaises(SystemExit):
+                cli.main(["--json", "--version"])
+        style.set_mode("never")
+        self.assertEqual(style.paint("x", "red"), "x")

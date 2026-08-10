@@ -1,37 +1,47 @@
 <div align="center">
 
-<img src="docs/media/banner.png" alt="FN2.AI skill — start, watch, and schedule fn2.ai research agents right from Claude Code, Codex, or Pi" width="820">
+<img src="docs/media/banner.png" alt="FN2 AI skill: start, watch, and schedule FN2 AI research agents right from Claude Code, Codex, or Pi" width="760">
 
 <p>
-  <a href="https://github.com/fn2ai/fn2-skill/actions/workflows/ci.yml"><img alt="CI" src="https://img.shields.io/github/actions/workflow/status/fn2ai/fn2-skill/ci.yml?branch=main&style=flat-square&label=tests&labelColor=0B0E14&color=FF6A00"></a>
-  <a href="https://github.com/fn2ai/fn2-skill/releases"><img alt="version" src="https://img.shields.io/github/v/tag/fn2ai/fn2-skill?style=flat-square&label=version&labelColor=0B0E14&color=FF6A00"></a>
-  <a href="LICENSE"><img alt="license" src="https://img.shields.io/badge/license-MIT-FF6A00?style=flat-square&labelColor=0B0E14"></a>
-  <img alt="python" src="https://img.shields.io/badge/python-3.9%2B-FF6A00?style=flat-square&labelColor=0B0E14">
-  <img alt="dependencies" src="https://img.shields.io/badge/dependencies-zero-FF6A00?style=flat-square&labelColor=0B0E14">
-  <img alt="harnesses" src="https://img.shields.io/badge/Claude%20Code%20%C2%B7%20Codex%20%C2%B7%20Pi-supported-FF6A00?style=flat-square&labelColor=0B0E14">
+  <a href="https://github.com/fn2ai/fn2-skill/actions/workflows/ci.yml"><img alt="CI" src="https://img.shields.io/github/actions/workflow/status/fn2ai/fn2-skill/ci.yml?branch=main&style=flat-square&label=tests&labelColor=1B1F27&color=4C8F5B"></a>
+  <a href="https://github.com/fn2ai/fn2-skill/releases"><img alt="version" src="https://img.shields.io/github/v/tag/fn2ai/fn2-skill?style=flat-square&label=version&labelColor=1B1F27&color=596273"></a>
+  <a href="LICENSE"><img alt="license" src="https://img.shields.io/badge/license-MIT-596273?style=flat-square&labelColor=1B1F27"></a>
+  <img alt="python" src="https://img.shields.io/badge/python-3.9%2B-596273?style=flat-square&labelColor=1B1F27">
+  <img alt="dependencies" src="https://img.shields.io/badge/dependencies-zero-596273?style=flat-square&labelColor=1B1F27">
+  <img alt="harnesses" src="https://img.shields.io/badge/Claude%20Code%20%C2%B7%20Codex%20%C2%B7%20Pi-supported-596273?style=flat-square&labelColor=1B1F27">
 </p>
 
-**Start, watch, and schedule [fn2.ai](https://fn2.ai) research agents — right from your terminal assistant.**
+**Ask [FN2 AI](https://fn2.ai) anything about public markets, then put the good questions on a schedule. From your terminal.**
 
-[Install](#install) · [Connect](#connect-your-account) · [In use](#in-use) · [Commands](#commands) · [Scheduling](#scheduling-in-plain-english) · [Security](#security--configuration)
+[Install](#install) · [Connect](#connect-your-account) · [In use](#in-use) · [Commands](#commands) · [Scheduling](#scheduling-in-everyday-words) · [Security](#security-and-configuration)
 
 </div>
 
 ---
 
-fn2 runs autonomous research agents on public markets. This skill lets your
-assistant — **Claude Code, OpenAI Codex, or Pi** — launch those agents, check
-what they found, and put them on a schedule like *"brief me before the next
-market open."*
+FN2 AI runs autonomous research agents on public markets: earnings-call
+transcripts, prices and volume, SEC filings, FRED macro series, prediction
+markets, and the news around them. This skill hands that to your assistant, so
+**Claude Code, OpenAI Codex, or Pi** can launch an agent, read what it found,
+and put it on a cadence.
+
+Things worth asking:
+
+- **Earnings calls.** *"What did NVIDIA say about data-center demand on the last call?"* Answered with the executives' own words.
+- **Price action.** *"How is NVDA trading today, and what moved it?"*
+- **Standing watches.** *"Notify me when AAPL drops more than 5% in a day."*
+- **The daily brief.** *"Brief me on my watchlist every weekday before the open."*
+- **Macro and filings.** *"Where is the yield curve now versus a year ago?"* · *"What changed in TSLA's latest 10-Q?"*
+- **What the market is pricing.** *"What odds are prediction markets giving a Fed cut this year?"*
 
 It is one dependency-free Python 3 file tree: **no `pip install`, no build
 step, standard library only.**
 
 <p align="center">
-  <img src="docs/media/hero-assistant.png" alt="Claude Code: 'schedule a pre-market brief on my watchlist before the open and email it to me' — the skill creates an fn2 agent on the market-open cadence" width="900">
+  <img src="docs/media/ask-anything.png" alt="Claude Code answering 'what did NVIDIA say about data-center demand on the last earnings call?' by running a one-off FN2 AI agent and reading the quoted result" width="880">
 </p>
 
-<div align="center"><sub>Ask in plain English. The skill does the API work.</sub></div>
+<div align="center"><sub>Ask in natural language. The skill does the API work.</sub></div>
 
 ## Install
 
@@ -57,8 +67,8 @@ codex plugin add fn2@fn2
 </tr>
 </table>
 
-**Pi**, or local development in any harness — clone the repository and link the
-canonical skill directory:
+**Pi**, or local development in any harness: clone the repository and link the
+canonical skill directory.
 
 ```bash
 git clone https://github.com/fn2ai/fn2-skill ~/.fn2-skill
@@ -71,45 +81,48 @@ and Pi at once.
 <details>
 <summary><b>Driving it yourself from a shell</b></summary>
 
-The assistant resolves the helper for you. To run the same commands by hand —
-every screenshot below is one of them — add an alias:
+The assistant resolves the helper for you. To run the same commands by hand,
+which is what every screenshot below shows, add an alias:
 
 ```bash
 alias fn2='python3 ~/.claude/skills/fn2/scripts/fn2'   # or ~/.codex/skills, ~/.hermes/skills
 ```
 
+Output is colourised when it is going to a terminal and plain everywhere else.
+`--color never` and `NO_COLOR` both turn it off; `--json` is never colourised.
+
 </details>
 
 ## Connect your account
 
-No secret copying — a browser device flow, the same shape as `gh auth login`:
+No secret copying. A browser device flow, the same shape as `gh auth login`:
 
 ```bash
 fn2 auth login
 ```
 
 <p align="center">
-  <img src="docs/media/auth-login.png" alt="fn2 auth login prints a short code, opens fn2.ai/start, and stores a scoped device credential in the macOS Keychain" width="880">
+  <img src="docs/media/auth-login.png" alt="fn2 auth login prints a short code, opens fn2.ai/start, and stores a scoped device credential in the macOS Keychain" width="860">
 </p>
 
 The terminal prints a short code and opens `https://fn2.ai/start`. Sign in (or
-sign up), type the code, click **Approve** — done. The CLI receives a scoped,
+sign up), type the code, click **Approve**, done. The CLI receives a scoped,
 revocable device credential and stores it in the macOS Keychain (or an
 owner-only file on Linux). You never see or copy a secret.
 
-Then just talk to your assistant:
-
-> *"start an agent that tracks unusual options flow in my watchlist hourly"*
-> *"what did my agents find today?"*
-> *"pause the macro digest until Monday"*
-
 ## In use
+
+**Standing watches, in one sentence.**
+
+<p align="center">
+  <img src="docs/media/alerts.png" alt="Claude Code turning 'notify me when AAPL drops more than 5% in a day' into an agent that runs after every close and emails the verdict" width="880">
+</p>
 
 <table>
 <tr valign="top">
 <td width="50%">
 
-**`fn2 agents` — the whole fleet**
+**`fn2 agents`, the whole fleet**
 
 Every agent, its cadence, and when it last ran.
 
@@ -118,7 +131,7 @@ Every agent, its cadence, and when it last ran.
 </td>
 <td width="50%">
 
-**`fn2 status <id>` — one agent in full**
+**`fn2 status <id>`, one agent in full**
 
 Cadence, model, the prompt it runs, and its recent runs.
 
@@ -129,7 +142,7 @@ Cadence, model, the prompt it runs, and its recent runs.
 <tr valign="top">
 <td>
 
-**`fn2 result <id> <run>` — read the research**
+**`fn2 result <id> <run>`, read the research**
 
 The finished briefing, in the terminal, with token accounting.
 
@@ -138,7 +151,7 @@ The finished briefing, in the terminal, with token accounting.
 </td>
 <td>
 
-**`fn2 start --when` — cadences in English**
+**`fn2 start --when`, cadences in words**
 
 "market close", "weekdays at 7am", "before market open".
 
@@ -149,7 +162,7 @@ The finished briefing, in the terminal, with token accounting.
 <tr valign="top">
 <td>
 
-**`fn2 whoami` · `fn2 models`**
+**`fn2 whoami` and `fn2 models`**
 
 Plan, quota, device scopes, and the models you can run on.
 
@@ -158,9 +171,9 @@ Plan, quota, device scopes, and the models you can run on.
 </td>
 <td>
 
-**`fn2 permissions` · `fn2 doctor`**
+**`fn2 permissions` and `fn2 doctor`**
 
-What the credential can't do, and a one-command health check.
+What the credential cannot do, and a one-command health check.
 
 <img src="docs/media/security.png" alt="fn2 permissions lists granted scopes and what the credential cannot do; fn2 doctor reports seven passing checks">
 
@@ -168,7 +181,7 @@ What the credential can't do, and a one-command health check.
 </tr>
 </table>
 
-<sub>Every screenshot is generated by running the real CLI — see
+<sub>Every screenshot is generated by running the real CLI. See
 [`tools/screenshots`](tools/screenshots).</sub>
 
 ## Commands
@@ -177,12 +190,12 @@ What the credential can't do, and a one-command health check.
 |---|---|
 | `auth login [--no-browser]` | connect via the browser device flow (code at fn2.ai/start) |
 | `auth status` | storage backend, masked credential, scopes, expiry, live check |
-| `auth logout [--revoke]` | disconnect (optionally revoke the credential on fn2 first) |
+| `auth logout [--revoke]` | disconnect (optionally revoke the credential on FN2 AI first) |
 | `permissions` | what the credential can and cannot do |
 | `doctor` | diagnose config, storage, and connectivity |
 | `login --token` / `whoami` | manual API-key fallback / show plan + quota |
 | `models` | list models available to your account |
-| `start "<prompt>" [--when …]` | create an agent — runs now, or on a schedule |
+| `start "<prompt>" [--when …]` | create an agent: runs now, or on a schedule |
 | `agents` (`ls`) | list your agents |
 | `status [<id>]` | overview, or one agent's detail + recent runs |
 | `run <id>` | trigger an agent immediately |
@@ -191,12 +204,12 @@ What the credential can't do, and a one-command health check.
 | `delete <id>` | remove an agent and its history |
 
 Every command accepts `--json` for scripting. Run results are available via
-`fn2 result` and in the fn2 web app; email delivery is configured in the web
-app, or with `--email` at creation.
+`fn2 result` and in the FN2 AI web app; add `--email` at creation to have each
+completed run delivered to your verified address.
 
-## Scheduling in plain English
+## Scheduling in everyday words
 
-`--when` accepts everyday phrasing:
+`--when` accepts ordinary phrasing:
 
 ```text
 before market open      every weekday 09:00 ET (30 min before the bell)
@@ -208,13 +221,13 @@ in 2 hours / tomorrow at 9am / 2026-07-22T13:00    one-off runs
 cron:0 9 * * 1-5        raw cron for full control
 ```
 
-Market phrases default to `America/New_York` and are resolved against the
-exchange calendar server-side, so they skip holidays and respect half-days — see
+Market phrases default to `America/New_York` and resolve against the exchange
+calendar server side, so they skip holidays and respect half-days. See
 [skills/fn2/references/scheduling.md](skills/fn2/references/scheduling.md).
 
-## Security & configuration
+## Security and configuration
 
-The credential is resolved in this order — the first hit wins:
+The credential is resolved in this order, first hit wins:
 
 1. `FN2_API_TOKEN` environment variable (canonical headless override;
    accepts `fn2d_…` device tokens and `fn2_…` API keys)
@@ -222,18 +235,18 @@ The credential is resolved in this order — the first hit wins:
 3. macOS Keychain (service `fn2-skill`; used automatically on macOS)
 4. `~/.config/fn2/credentials.json` (written `0600`, directory `0700`)
 
-There is **no `.env` support** — a working-directory file can never inject a
+There is **no `.env` support**, so a working-directory file can never inject a
 credential. Other knobs: `FN2_BASE_URL` (default `https://fn2.ai`),
 `FN2_CONFIG_HOME`.
 
 Hard safety rails:
 
-- **Origin pinning** — the API base must be `https://` on `fn2.ai` or
+- **Origin pinning.** The API base must be `https://` on `fn2.ai` or
   `*.fn2.ai`; the credential is never sent anywhere else
   (`FN2_ALLOW_DEV_BASE=1` exists for local development only and warns loudly).
-- **Redaction** — the credential appears only as a masked `fn2d_…wxyz` form in
+- **Redaction.** The credential appears only as a masked `fn2d_…wxyz` form in
   all output, including `--json` and error text.
-- **Revocation** — revoke any connected device in the fn2 web app under
+- **Revocation.** Revoke any connected device in the FN2 AI web app under
   **Preferences → Developer → Connected Devices** (or `fn2 auth logout
   --revoke`); it takes effect within a few minutes everywhere.
 
@@ -248,15 +261,16 @@ skills/fn2/scripts/fn2cli/
   storage.py           → macOS Keychain / owner-only file + pending-login state
   deviceauth.py        → the fn2.ai/start device-authorization flow
   client.py            → urllib HTTP layer + typed errors
-  api.py               → one function per fn2 endpoint
-  schedule.py          → "before market open" → fn2 schedule object
+  api.py               → one function per FN2 AI endpoint
+  schedule.py          → "before market open" into an FN2 AI schedule object
   render.py            → human / JSON output
+  style.py             → ANSI colour, off unless stdout is a terminal
   cli.py               → argument parsing + dispatch
 ```
 
 It talks only to the documented public API (`/api/v1/agents`, `/runs`, `/usage`,
-`/models`, `/skill/device-auth/*`) with your scoped credential — no admin
-access, no scraping. See [skills/fn2/references/api.md](skills/fn2/references/api.md).
+`/models`, `/skill/device-auth/*`) with your scoped credential. No admin access,
+no scraping. See [skills/fn2/references/api.md](skills/fn2/references/api.md).
 
 ## Development
 
@@ -268,10 +282,10 @@ make install     # link the canonical skill into Claude, Codex, and Pi
 make media       # regenerate docs/media (needs Chromium + ImageMagick)
 ```
 
-Contributions welcome — start with [CONTRIBUTING.md](CONTRIBUTING.md).
+Contributions welcome. Start with [CONTRIBUTING.md](CONTRIBUTING.md).
 
 ## License
 
-MIT — see [LICENSE](LICENSE). Bundled documentation fonts (JetBrains Mono,
+MIT, see [LICENSE](LICENSE). Bundled documentation fonts (JetBrains Mono,
 Libre Franklin) are SIL OFL 1.1; see
 [tools/screenshots/fonts](tools/screenshots/fonts).

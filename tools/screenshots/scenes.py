@@ -14,9 +14,13 @@ import fixtures
 
 AGENT = fixtures.AGENT_SENTIMENT
 RUN = fixtures.RUN_LATEST
-SHORT = AGENT[:8]
+ASK_AGENT = fixtures.AGENT_ASK
+ASK_RUN = fixtures.RUN_ASK
 
-HERO_PROMPT = "Pre-market brief on my watchlist: gaps, news, and what to watch"
+ALERT_PROMPT = (
+    "Check AAPL's move since the last close. If it fell more than 5%, explain "
+    "what drove it and what changed for the thesis; otherwise reply 'no alert'."
+)
 
 
 def _terminal(name: str, title: str, caption: str,
@@ -29,28 +33,56 @@ def build() -> List[Dict[str, Any]]:
     """Return every scene. `commands` entries are (shown, argv) pairs."""
     return [
         {
-            "name": "hero-assistant",
+            "name": "ask-anything",
             "kind": "chat",
-            "title": "Claude Code · fn2 skill",
-            "caption": "Ask in plain English; the skill does the API work.",
-            "cols": 86,
+            "title": "claude",
+            "caption": "Ask in natural language; the answer is quoted and cited.",
+            "cols": 88,
+            "hint": 'Try "brief me like this every weekday before the open"',
             "capture": [
-                ("fn2 start \"" + HERO_PROMPT + "\" \\\n      --when \"before market open\" --email",
-                 ["start", HERO_PROMPT, "--when", "before market open", "--email"]),
+                (f'fn2 start "{fixtures.ASK_PROMPT}"',
+                 ["start", fixtures.ASK_PROMPT]),
+                (f"fn2 result {ASK_AGENT} {ASK_RUN}",
+                 ["result", ASK_AGENT, ASK_RUN]),
             ],
             "messages": [
                 {"role": "user",
-                 "text": "schedule a pre-market brief on my watchlist before the open "
-                         "and email it to me"},
+                 "text": "what did NVIDIA say about data-center demand on the "
+                         "last earnings call?"},
                 {"role": "assistant",
-                 "text": "I'll create an fn2 agent on the market-open cadence — it "
-                         "resolves against the exchange calendar, so it skips holidays "
-                         "and half-days on its own."},
+                 "text": "Running that as a one-off FN2 AI agent, then reading "
+                         "the result."},
+                {"role": "tool", "capture": 0},
+                {"role": "tool", "capture": 1},
+                {"role": "assistant",
+                 "text": "Huang called demand \"parabolic\" and put it down to "
+                         "agentic AI; Kress sized AI-infrastructure spend at $3T "
+                         "to $4T a year by 2030 and flagged supply chain as the "
+                         "constraint. The stock closed 217.55, off 2.9%, with the "
+                         "next print on 26 Aug."},
+            ],
+        },
+        {
+            "name": "alerts",
+            "kind": "chat",
+            "title": "claude",
+            "caption": "Standing watches, in one sentence.",
+            "cols": 88,
+            "hint": 'Try "pause that until earnings"',
+            "capture": [
+                (f'fn2 start "{ALERT_PROMPT}" --when "market close" --email',
+                 ["start", ALERT_PROMPT, "--when", "market close", "--email"]),
+            ],
+            "messages": [
+                {"role": "user", "text": "notify me when AAPL drops more than 5% in a day"},
+                {"role": "assistant",
+                 "text": "I'll put a watch on the close and have it email you."},
                 {"role": "tool", "capture": 0},
                 {"role": "assistant",
-                 "text": "Done. It runs every trading day 30 minutes before the bell "
-                         "and emails the brief to your verified address. Pause it any "
-                         "time with \"pause the pre-market brief\"."},
+                 "text": "It runs 5 minutes after every close and emails you the "
+                         "verdict. Quiet days are a one-line note; the exchange "
+                         "calendar is resolved server side, so holidays and "
+                         "half-days are skipped."},
             ],
         },
         _terminal(
@@ -65,7 +97,7 @@ def build() -> List[Dict[str, Any]]:
             [("fn2 agents", ["agents"])],
         ),
         _terminal(
-            "status", f"fn2 status {SHORT}…",
+            "status", "fn2 status",
             "One agent in full: cadence, prompt, and recent runs.",
             [(f"fn2 status {AGENT}", ["status", AGENT, "--runs", "5"])],
         ),
@@ -76,10 +108,8 @@ def build() -> List[Dict[str, Any]]:
         ),
         _terminal(
             "scheduling", "fn2 start --when",
-            "Cadences in plain English, resolved against the exchange calendar.",
-            [("fn2 start \"Overnight recap on NVDA and peers\"",
-              ["start", "Overnight recap on NVDA and peers"]),
-             ("fn2 start \"EOD watchlist recap\" --when \"market close\" --email",
+            "Cadences in everyday words, resolved against the exchange calendar.",
+            [("fn2 start \"EOD watchlist recap\" --when \"market close\" --email",
               ["start", "EOD watchlist recap", "--when", "market close", "--email"]),
              ("fn2 start \"Macro digest\" --when \"weekdays at 7am\" --tz America/New_York",
               ["start", "Macro digest", "--when", "weekdays at 7am",
@@ -88,14 +118,14 @@ def build() -> List[Dict[str, Any]]:
               ["schedule", AGENT, "hourly"])],
         ),
         _terminal(
-            "account", "fn2 whoami · fn2 models",
+            "account", "fn2 whoami",
             "Plan, quota, device scopes, and the models you can run on.",
             [("fn2 whoami", ["whoami"]),
              ("fn2 models", ["models"])],
         ),
         _terminal(
-            "security", "fn2 permissions · fn2 doctor",
-            "A scoped, revocable credential — and a one-command health check.",
+            "security", "fn2 doctor",
+            "A scoped, revocable credential, and a one-command health check.",
             [("fn2 permissions", ["permissions"]),
              ("fn2 doctor", ["doctor"])],
         ),

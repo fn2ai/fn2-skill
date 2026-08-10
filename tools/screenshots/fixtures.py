@@ -24,7 +24,10 @@ AGENT_EARNINGS = "3a374644-8290-48cb-aa0b-3927288f8d15"
 AGENT_MACRO = "e4c4a9e0-8652-4ae2-9f17-a0be2d4a4c26"
 AGENT_NVDA = "f2996d1a-03f4-4886-b0f1-5dd2b0ed30fe"
 
+AGENT_ASK = "7b04c9de-1a68-4f21-8e5c-63d9a7f0b214"
+
 RUN_LATEST = "6c1f4b2a-9d33-4e07-8f5b-2a71c0e94d18"
+RUN_ASK = "c50a7f36-88d2-4b19-9e74-1d6a3520fbc8"
 RUNS_OLDER = [
     "b38e7a05-41c6-4fd9-9a2e-70d5183bc4f7",
     "0f92d6c1-7be4-4a35-b8d0-51c6e2af9330",
@@ -37,36 +40,63 @@ DEMO_ACCOUNT = {"email_masked": "yo•••@example.com", "plan": "pro"}
 
 MODEL = "z-ai/glm-5.2"
 
+ASK_PROMPT = (
+    "What did NVIDIA executives say about data-center demand on the most recent "
+    "earnings call? Quote them, and note how the stock reacted."
+)
+
+# Verbatim from the transcripts the agent cites: NVIDIA Q1 FY2027 call,
+# 20 May 2026. Quotes are the executives' own words.
+ASK_TEXT = """\
+NVIDIA Q1 FY2027 earnings call, 20 May 2026.
+
+Jensen Huang, CEO:
+  "This was an extraordinary quarter. Demand has gone parabolic. The
+   reason is simple. Agentic AI has arrived."
+
+Colette Kress, CFO:
+  "Demand for AI infrastructure continues to expand at an unprecedented
+   pace. The build out of AI factories is accelerating."
+  "We are continuing to work vigorously on our supply chain ecosystem to
+   address the incredible demand we see ahead of us."
+  "AI infrastructure spending is on track to reach $3 trillion to
+   $4 trillion annually by the end of this decade."
+
+Stock: NVDA closed 217.55, down 2.86% on the day. Next print 26 Aug,
+after the close.
+
+Research commentary, not personalized investment advice."""
+
 SENTIMENT_PROMPT = (
     "You are a market sentiment analyst. At the open, assess the market mood and "
     "deliver a concise, actionable briefing: pre-market movers, index check "
     "(SPY/QQQ/IWM), sector leaders and laggards, a macro snapshot from FRED, "
     "overnight headlines, and what prediction markets are pricing. Lead with a "
-    "clear Bullish / Bearish / Mixed call — traders need the signal in under "
+    "clear Bullish / Bearish / Mixed call; traders need the signal in under "
     "30 seconds."
 )
 
 # Trimmed from a real run of the agent above. Kept verbatim in structure and
 # tone; the numbers are the ones that run reported.
 RESULT_TEXT = """\
-SENTIMENT CALL: MIXED — cautiously bullish tape, elevated underlying risk
+SENTIMENT CALL: MIXED. Cautiously bullish tape, elevated underlying risk.
 
 Indices open flat with small caps lagging. Energy leads on geopolitical
 risk, tech is bifurcated, and the macro picture flashes a caution flag.
 
 INDEX CHECK (opening prints)
   SPY  772.67  -0.08%     QQQ  722.41  -0.09%     IWM  300.30  -0.42%
-  Small caps are the relative laggard — a risk-off tell at the margin.
+  Small caps are the relative laggard, a risk-off tell at the margin.
 
 LEADERS & LAGGARDS
   CVX   188.87  +1.24%   energy bid on Strait of Hormuz headlines
   MSFT  505.69  +1.14%   the lone large-cap tech green
   JPM   357.34  -0.05%   banks flat, consistent with the mixed macro read
-  AAPL  306.54  -2.17%   standout decliner — worth a catalyst check
+  AAPL  306.54  -2.17%   standout decliner, worth a catalyst check
 
 MACRO (FRED)
   Fed funds 3.63%  CPI 3.46% YoY  10Y 4.69%  curve +0.46%  VIX 15.15
-  Consumer sentiment 49.5 — extreme low, down 18.5% YoY. Low sentiment
+  Consumer sentiment 49.5, an extreme low, down 18.5% YoY. Low sentiment
   with record equity prices and a 15 handle on VIX is the divergence
   to watch.
 
@@ -229,6 +259,20 @@ def build(now: dt.datetime) -> Dict[str, Any]:
         runs.append(run(rid, day, secs, out))
 
     latest = dict(runs[0], result={"text": RESULT_TEXT})
+    asked = {
+        "agent_id": AGENT_ASK,
+        "run_id": RUN_ASK,
+        "status": "completed",
+        "created_at": _iso(now - dt.timedelta(seconds=48)),
+        "started_at": _iso(now - dt.timedelta(seconds=48)),
+        "completed_at": _iso(now - dt.timedelta(seconds=9)),
+        "duration_seconds": 38.6,
+        "model": MODEL,
+        "error": None,
+        "usage": {"input_tokens": 51204, "output_tokens": 902,
+                  "total_tokens": 52106},
+        "result": {"text": ASK_TEXT},
+    }
 
     created = {
         "id": AGENT_PREMARKET,
@@ -286,9 +330,11 @@ def build(now: dt.datetime) -> Dict[str, Any]:
         "agents": agents,
         "agent_by_id": {a["id"]: a for a in agents},
         "runs": runs,
-        "run_detail": latest,
+        "run_detail": {RUN_LATEST: latest, RUN_ASK: asked},
         "created_agent": created,
         "created_ids": [AGENT_PREMARKET, AGENT_EARNINGS, AGENT_NVDA],
+        "ask_agent_id": AGENT_ASK,
+        "ask_run_id": RUN_ASK,
         "usage": usage,
         "models": models,
         "device_start": device_start,

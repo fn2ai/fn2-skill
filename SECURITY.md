@@ -11,7 +11,7 @@ and whether a credential could leave the machine. We aim to acknowledge within
 three business days.
 
 **Never include a real credential in a report.** All CLI output is redacted to
-a masked `fn2d_…wxyz` form already — paste it as printed.
+a masked `fn2d_…wxyz` form already, so paste it as printed.
 
 ## What this skill guarantees
 
@@ -22,7 +22,7 @@ vulnerability, not a bug report.
 |---|---|
 | The credential is only ever sent to `https://fn2.ai` or `*.fn2.ai` | `config.enforce_base_url` |
 | No secret appears in output, `--json`, error text, or argv | `config.mask` / `config.redact`, `storage` (Keychain writes go over stdin) |
-| No working-directory file can inject a credential or endpoint — there is no `.env` support | `config.resolve` |
+| No working-directory file can inject a credential or endpoint: there is no `.env` support | `config.resolve` |
 | Stored credentials are owner-only: directory `0700`, file `0600`, symlinks refused, `O_NOFOLLOW` on write | `storage._write_owner_json` |
 | The pending device-login state never contains an access token | `storage.save_pending` |
 | A server-supplied poll interval cannot wedge the CLI | `deviceauth.poll_until_complete` |
@@ -37,7 +37,7 @@ your chats; and cannot approve new devices or create API keys.
 fn2 auth logout --revoke
 ```
 
-Or revoke it in the fn2 web app under **Preferences → Developer → Connected
+Or revoke it in the FN2 AI web app under **Preferences → Developer → Connected
 Devices**. Revocation takes effect within a few minutes everywhere.
 
 ## Supported versions
