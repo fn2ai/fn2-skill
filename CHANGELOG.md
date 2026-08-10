@@ -5,6 +5,35 @@ Notable changes to the FN2 AI skill. The format follows
 [semantic versioning](https://semver.org/spec/v2.0.0.html) on the CLI's
 user-visible surface.
 
+## [0.5.0] - 2026-08-10
+
+### Added
+
+- **`fn2 link`** writes an `fn2` launcher into the first writable `bin`
+  directory on your `PATH`, so a plugin install can actually give you the
+  command. The launcher re-resolves the skill at run time, so a plugin update
+  (which moves the versioned install directory) cannot strand it. `fn2 unlink`
+  removes it, and refuses to delete a file it did not write.
+- **Agent references accept an id, an id prefix, or a name.** `fn2 agents`
+  prints 8-character ids; those 8 characters now work everywhere an agent is
+  taken. Ambiguous references are refused with the candidates listed, never
+  guessed. A full id still costs no extra request.
+- **`--wait`** on `start` (when it runs now) and on `run`: blocks until the run
+  is terminal and prints the result, turning ask-and-read into one command. It
+  uses the API's own `?wait=` long-poll rather than a client-side hammer loop,
+  and honours `--timeout` (default 300s).
+- **`fn2 result <agent>`** defaults to the newest run, so there is no run id to
+  copy for the common case.
+
+### Fixed
+
+- A console that cannot encode `✓` (legacy Windows cp1252) took the whole
+  command down with `UnicodeEncodeError`. Glyphs now fall back to ASCII.
+- API errors carrying `retry_after` say when to try again; 5xx responses quote
+  their `request_id`.
+- The launcher and the documented resolution chain honour `CLAUDE_CONFIG_DIR`,
+  which a relocated Claude home needs.
+
 ## [0.4.1] - 2026-08-10
 
 ### Fixed
@@ -104,6 +133,7 @@ user-visible surface.
 - First release: start, watch, and schedule FN2 AI research agents from Claude
   Code, Codex, or Pi.
 
+[0.5.0]: https://github.com/fn2ai/fn2-skill/compare/v0.4.1...v0.5.0
 [0.4.1]: https://github.com/fn2ai/fn2-skill/compare/v0.4.0...v0.4.1
 [0.4.0]: https://github.com/fn2ai/fn2-skill/compare/v0.3.0...v0.4.0
 [0.3.0]: https://github.com/fn2ai/fn2-skill/releases/tag/v0.3.0

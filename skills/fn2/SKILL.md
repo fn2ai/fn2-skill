@@ -85,7 +85,11 @@ wins over a stale cached version.
 
 ## Command cheatsheet
 
+Agent arguments accept an **id, an id prefix (the 8 characters `agents`
+prints), or a name**; ambiguity is refused, never guessed.
+
 ```bash
+python3 "$FN2" start "What did NVDA say about demand last call?" --wait   # ask and get the answer
 python3 "$FN2" start "Summarize overnight moves in NVDA and peers"        # run once, now
 python3 "$FN2" start "Pre-market brief on my watchlist" \
     --when "before market open"                                          # 30 min before each open (trading days only)
@@ -96,9 +100,10 @@ python3 "$FN2" start "EOD watchlist recap" --when "market close" --email  # + em
 python3 "$FN2" agents                     # list your agents
 python3 "$FN2" status                     # same overview
 python3 "$FN2" status <agent_id>          # detail + recent runs
-python3 "$FN2" run <agent_id>             # trigger now
+python3 "$FN2" run <agent_id> --wait      # trigger now, block until it finishes
 python3 "$FN2" runs <agent_id>            # run history
-python3 "$FN2" result <agent_id> <run_id> # one run's output
+python3 "$FN2" result <agent_id>          # newest run
+python3 "$FN2" result <agent_id> <run_id> # a specific run
 
 python3 "$FN2" pause <agent_id>
 python3 "$FN2" resume <agent_id>
@@ -109,7 +114,17 @@ python3 "$FN2" auth status                # credential health + storage backend
 python3 "$FN2" permissions                # what the credential can / cannot do
 python3 "$FN2" doctor                     # local diagnostics
 python3 "$FN2" auth logout --revoke       # disconnect + revoke on FN2 AI
+python3 "$FN2" link                       # put an `fn2` launcher on the user's PATH
 ```
+
+**One-off questions.** A prompt with no `--when` runs immediately. Use `--wait`
+so the answer comes back in the same command instead of making the user ask
+twice; it long-polls the API and honours `--timeout` (default 300s).
+
+**If the user wants to run `fn2` themselves**, offer `python3 "$FN2" link`.
+Installing the plugin puts nothing on `PATH`, so `fn2` alone is
+`command not found` until that runs. The launcher it writes re-resolves the
+skill each time, so plugin updates do not break it.
 
 Add `--json` to any command for machine-readable output.
 

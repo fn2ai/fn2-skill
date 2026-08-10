@@ -62,13 +62,18 @@ def run_agent(client: Client, agent_id: str) -> Dict[str, Any]:
 
 
 def list_runs(client: Client, agent_id: str, *, limit: int = 20,
-              offset: int = 0) -> Dict[str, Any]:
+              offset: int = 0, wait: Optional[int] = None) -> Dict[str, Any]:
+    # `wait` long-polls server-side (0-25s) for the first run to appear, which
+    # beats hammering the endpoint from a client loop.
     return client.get(f"{_V1}/agents/{agent_id}/runs",
-                      params={"limit": limit, "offset": offset})
+                      params={"limit": limit, "offset": offset, "wait": wait})
 
 
-def get_run(client: Client, agent_id: str, run_id: str) -> Dict[str, Any]:
-    return client.get(f"{_V1}/agents/{agent_id}/runs/{run_id}")
+def get_run(client: Client, agent_id: str, run_id: str, *,
+            wait: Optional[int] = None) -> Dict[str, Any]:
+    """`wait` (0-25s) long-polls until the run is terminal or the deadline passes."""
+    return client.get(f"{_V1}/agents/{agent_id}/runs/{run_id}",
+                      params={"wait": wait})
 
 
 # -- account -------------------------------------------------------------

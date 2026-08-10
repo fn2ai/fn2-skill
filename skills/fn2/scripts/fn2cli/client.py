@@ -27,6 +27,8 @@ class ApiError(RuntimeError):
         self.status = status
         self.code = code
         self.payload = payload
+        self.retry_after: Optional[Any] = None
+        self.request_id: Optional[str] = None
 
     def __str__(self) -> str:
         # Belt to _http_error's braces. An error path that raises while being
@@ -118,6 +120,8 @@ class Client:
                 payload = json.loads(raw)
             except json.JSONDecodeError:
                 message = raw[:280]
+        retry_after = None
+        request_id = exc.headers.get("X-Request-Id") if exc.headers else None
         if isinstance(payload, dict):
             # TWO error envelopes reach this client and they disagree about
             # what `error` holds:
@@ -138,8 +142,20 @@ class Client:
                     message = value
                     break
             code = payload.get("code")
+            retry_after = payload.get("retry_after")
+            request_id = payload.get("request_id") or request_id
+        if retry_after is None and exc.headers:
+            retry_after = exc.headers.get("Retry-After")
+        # Say WHEN to try again rather than leaving the caller to guess.
+        if retry_after:
+            message = f"{message} (retry after {retry_after}s)"
+        if request_id and exc.code >= 500:
+            message = f"{message} [request {request_id}]"
         cls = AuthError if exc.code in (401, 403) else ApiError
-        return cls(str(message), status=exc.code, code=code, payload=payload)
+        error = cls(str(message), status=exc.code, code=code, payload=payload)
+        error.retry_after = retry_after
+        error.request_id = request_id
+        return error
 
     # -- verb sugar ------------------------------------------------------
     def get(self, path: str, **kw) -> Any:

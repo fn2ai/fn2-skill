@@ -18,7 +18,7 @@ _SCRIPTS = (pathlib.Path(__file__).resolve().parent.parent /
             "skills" / "fn2" / "scripts")
 sys.path.insert(0, str(_SCRIPTS))
 
-from fn2cli import api, config, render, schedule, style  # noqa: E402
+from fn2cli import api, cli, config, render, schedule, style  # noqa: E402
 from fn2cli.client import ApiError, AuthError, Client  # noqa: E402
 
 
@@ -471,3 +471,134 @@ class StyleTests(unittest.TestCase):
                 cli.main(["--json", "--version"])
         style.set_mode("never")
         self.assertEqual(style.paint("x", "red"), "x")
+
+
+# ---------------------------------------------------------------------------
+# agent references: `fn2 agents` prints 8 chars, so 8 chars must work
+# ---------------------------------------------------------------------------
+class _AgentListStub:
+    """A Client whose only job is to answer GET /agents."""
+
+    def __init__(self, agents):
+        self.agents = agents
+        self.calls = 0
+
+    def get(self, path, **kw):
+        self.calls += 1
+        return {"agents": self.agents, "total": len(self.agents)}
+
+
+AGENTS = [
+    {"id": "ebab1623-5957-4e49-a929-085afee5e496", "name": "Market Open Sentiment"},
+    {"id": "e4c4a9e0-8652-4ae2-9f17-a0be2d4a4c26", "name": "Macro & rates digest"},
+    {"id": "3a374644-8290-48cb-aa0b-3927288f8d15", "name": "Earnings reaction recap"},
+]
+
+
+class AgentReferenceTests(unittest.TestCase):
+    def test_full_id_costs_no_request(self):
+        stub = _AgentListStub(AGENTS)
+        self.assertEqual(cli._resolve_agent(stub, AGENTS[0]["id"]), AGENTS[0]["id"])
+        self.assertEqual(stub.calls, 0)
+
+    def test_printed_short_id_resolves(self):
+        stub = _AgentListStub(AGENTS)
+        self.assertEqual(cli._resolve_agent(stub, "ebab1623"), AGENTS[0]["id"])
+
+    def test_name_resolves_exactly_and_by_substring(self):
+        stub = _AgentListStub(AGENTS)
+        self.assertEqual(cli._resolve_agent(stub, "Macro & rates digest"), AGENTS[1]["id"])
+        self.assertEqual(cli._resolve_agent(stub, "earnings"), AGENTS[2]["id"])
+
+    def test_ambiguity_refuses_rather_than_guesses(self):
+        stub = _AgentListStub(AGENTS)
+        with self.assertRaises(SystemExit) as caught:
+            cli._resolve_agent(stub, "e")
+        message = str(caught.exception)
+        self.assertIn("matches 2 agents", message)
+        self.assertIn("ebab1623", message)
+
+    def test_unknown_reference_names_the_fix(self):
+        stub = _AgentListStub(AGENTS)
+        with self.assertRaises(SystemExit) as caught:
+            cli._resolve_agent(stub, "nope")
+        self.assertIn("fn2 agents", str(caught.exception))
+
+
+# ---------------------------------------------------------------------------
+# --wait: uses the API's own long-poll instead of a client-side hammer loop
+# ---------------------------------------------------------------------------
+class _RunStub:
+    def __init__(self, statuses):
+        self.statuses = list(statuses)
+        self.waits = []
+
+    def get(self, path, params=None, **kw):
+        self.waits.append((params or {}).get("wait"))
+        status = self.statuses.pop(0) if len(self.statuses) > 1 else self.statuses[0]
+        return {"run_id": "r1", "status": status}
+
+
+class WaitTests(unittest.TestCase):
+    def test_polls_until_terminal_and_passes_a_server_wait(self):
+        stub = _RunStub(["pending", "running", "completed"])
+        run = cli._await_run(stub, "a1", "r1", 300, lambda _m: None)
+        self.assertEqual(run["status"], "completed")
+        self.assertEqual(len(stub.waits), 3)
+        # The server caps its long-poll at 25s; never ask for more.
+        self.assertTrue(all(0 <= w <= 25 for w in stub.waits), stub.waits)
+
+    def test_gives_up_at_the_deadline_without_hanging(self):
+        stub = _RunStub(["running"])
+        said = []
+        run = cli._await_run(stub, "a1", "r1", 0, said.append)
+        self.assertEqual(run["status"], "running")
+        self.assertEqual(len(stub.waits), 1)
+        self.assertIn("fn2 result", said[0])
+
+
+# ---------------------------------------------------------------------------
+# glyphs: a cp1252 console must not take the command down over a tick mark
+# ---------------------------------------------------------------------------
+class GlyphTests(unittest.TestCase):
+    def tearDown(self):
+        style.reset_glyph_cache()
+
+    def test_ascii_fallback_when_the_stream_cannot_encode(self):
+        style.reset_glyph_cache()
+        with mock.patch("sys.stdout") as fake:
+            fake.encoding = "cp1252"
+            self.assertEqual(style.glyph("ok"), "OK")
+            self.assertEqual(style.glyph("star"), "*")
+
+    def test_unicode_when_the_stream_can(self):
+        style.reset_glyph_cache()
+        with mock.patch("sys.stdout") as fake:
+            fake.encoding = "utf-8"
+            self.assertEqual(style.glyph("ok"), "\u2713")
+
+    def test_every_glyph_survives_a_pure_ascii_stream(self):
+        style.reset_glyph_cache()
+        with mock.patch("sys.stdout") as fake:
+            fake.encoding = "ascii"
+            for name in ("ok", "pause", "play", "trash", "star", "ellipsis"):
+                style.glyph(name).encode("ascii")  # must not raise
+
+
+# ---------------------------------------------------------------------------
+# errors: say when to retry, and which request to quote
+# ---------------------------------------------------------------------------
+class ErrorEnvelopeTests(unittest.TestCase):
+    def test_retry_after_is_surfaced(self):
+        client = Client("https://fn2.ai", "fn2_key")
+        error = client._http_error(_http_error(
+            429, json.dumps({"error": "quota exceeded", "code": "quota",
+                             "retry_after": 42})))
+        self.assertIn("retry after 42s", str(error))
+        self.assertEqual(error.retry_after, 42)
+
+    def test_request_id_is_attached_for_server_errors(self):
+        client = Client("https://fn2.ai", "fn2_key")
+        error = client._http_error(_http_error(
+            503, json.dumps({"error": "upstream", "request_id": "req_abc"})))
+        self.assertIn("req_abc", str(error))

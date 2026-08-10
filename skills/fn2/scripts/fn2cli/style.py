@@ -87,6 +87,46 @@ def pad(text: str, size: int) -> str:
     return text + " " * max(0, size - width(text))
 
 
+# -- glyphs --------------------------------------------------------------
+# A legacy Windows console is cp1252, where printing "✓" raises
+# UnicodeEncodeError and takes the whole command down. Ask the stream what it
+# can encode and fall back to ASCII rather than crashing on a tick mark.
+_GLYPHS = {
+    "ok": ("✓", "OK"),
+    "pause": ("⏸", "||"),
+    "play": ("▶", ">"),
+    "trash": ("🗑", "x"),
+    "star": ("★", "*"),
+    "ellipsis": ("…", "..."),
+}
+
+_unicode_ok: Optional[bool] = None
+
+
+def unicode_safe() -> bool:
+    """Whether stdout can encode the glyphs above."""
+    global _unicode_ok
+    if _unicode_ok is None:
+        encoding = getattr(sys.stdout, "encoding", None) or "ascii"
+        try:
+            "".join(fancy for fancy, _ in _GLYPHS.values()).encode(encoding)
+            _unicode_ok = True
+        except (UnicodeEncodeError, LookupError):
+            _unicode_ok = False
+    return _unicode_ok
+
+
+def glyph(name: str) -> str:
+    fancy, plain = _GLYPHS[name]
+    return fancy if unicode_safe() else plain
+
+
+def reset_glyph_cache() -> None:
+    """Re-probe the stream. Only tests need this."""
+    global _unicode_ok
+    _unicode_ok = None
+
+
 # -- semantic helpers ----------------------------------------------------
 _STATUS_STYLES = {
     "active": ("green",),
@@ -119,3 +159,7 @@ def bad(text: str) -> str:
 
 def head(text: str) -> str:
     return paint(text, "bold")
+
+
+def tick() -> str:
+    return ok(glyph("ok"))

@@ -99,7 +99,7 @@ class PackagingTests(unittest.TestCase):
                 version = subprocess.run(
                     [sys.executable, str(link / "scripts" / "fn2"), "--version"],
                     check=True, text=True, capture_output=True).stdout.strip()
-                self.assertEqual(version, "fn2-skill 0.4.1")
+                self.assertEqual(version, "fn2-skill 0.5.0")
 
             subprocess.run(
                 ["make", "uninstall"], cwd=ROOT, env=env,
@@ -108,15 +108,20 @@ class PackagingTests(unittest.TestCase):
                 self.assertFalse(link.is_symlink(), link)
 
     def test_documented_shell_snippets_find_every_install_layout(self):
-        """The snippets in SKILL.md and README.md must actually resolve the helper.
+        """The resolution chain in SKILL.md and the launcher `fn2 link` writes
+        must both find the helper, whichever way it was installed.
 
         A marketplace install lands in a versioned directory that moves on
         every update, so this is exactly the case a hardcoded path gets wrong.
         """
+        sys.path.insert(0, str(SKILL / "scripts"))
+        from fn2cli import cli  # noqa: E402  (path set above)
+
+        # (script, marker its output must contain once it resolved the helper)
         snippets = {
-            "SKILL.md": _bash_block(SKILL / "SKILL.md", "## Locating the helper"),
-            "README.md": _bash_block(ROOT / "README.md", "## Running it yourself")
-            + '\nfn2 --version\n',
+            "SKILL.md": (_bash_block(SKILL / "SKILL.md", "## Locating the helper"),
+                         "usage: fn2"),
+            "fn2 link launcher": (cli._LAUNCHER + "\n", "fn2-skill"),
         }
         layouts = {
             # `claude plugin install`: cache/<marketplace>/<plugin>/<version>/
@@ -125,7 +130,7 @@ class PackagingTests(unittest.TestCase):
             "codex": ".codex/skills/fn2",
             "pi": ".hermes/skills/fn2",
         }
-        for source, snippet in snippets.items():
+        for source, (snippet, marker) in snippets.items():
             for name, relative in layouts.items():
                 with self.subTest(snippet=source, layout=name):
                     with tempfile.TemporaryDirectory() as temp:
@@ -136,15 +141,17 @@ class PackagingTests(unittest.TestCase):
                         env = {
                             "HOME": str(home),
                             "PATH": os.environ.get("PATH", ""),
+                            # A relocated Claude home must still resolve.
+                            "CLAUDE_CONFIG_DIR": str(home / ".claude"),
                             "CODEX_HOME": str(home / ".codex"),
                             "HERMES_HOME": str(home / ".hermes"),
                         }
                         # An empty cwd: the `$(pwd)` fallback must not rescue us.
                         result = subprocess.run(
-                            ["bash", "-c", snippet], env=env, cwd=temp,
-                            text=True, capture_output=True)
+                            ["bash", "-c", snippet, "fn2", "--version"],
+                            env=env, cwd=temp, text=True, capture_output=True)
                         self.assertEqual(result.returncode, 0, result.stderr)
-                        self.assertIn("fn2", result.stdout)
+                        self.assertIn(marker, result.stdout)
 
     def test_readme_does_not_promise_an_fn2_binary_before_defining_one(self):
         """`claude plugin install` adds no PATH entry, so the README must not
@@ -154,21 +161,22 @@ class PackagingTests(unittest.TestCase):
         command while describing it.
         """
         readme = (ROOT / "README.md").read_text(encoding="utf-8")
-        self.assertLess(readme.index("does not put `fn2` on your `PATH`"),
-                        readme.index("fn2() {"))
-        offset, defined = 0, False
+        caveat = readme.index("nothing lands on your `PATH`")
+        offset, linked = 0, False
         for block in re.findall(r"```bash\n(.*?)```", readme, re.S):
             start = readme.index(block, offset)
             offset = start + len(block)
-            if "fn2() {" in block:
-                defined = True
+            if "scripts/fn2 link" in block:
+                linked = True
+                self.assertLess(caveat, start,
+                                "the PATH caveat must come before `fn2 link`")
                 continue
             runs_fn2 = [line for line in block.splitlines()
                         if line.strip().startswith("fn2 ")]
             if runs_fn2:
                 self.assertTrue(
-                    defined,
-                    f"README runs {runs_fn2[0].strip()!r} before defining `fn2`")
+                    linked,
+                    f"README runs {runs_fn2[0].strip()!r} before `fn2 link`")
 
     def test_make_install_refuses_to_replace_a_real_skill_directory(self):
         with tempfile.TemporaryDirectory() as temp:

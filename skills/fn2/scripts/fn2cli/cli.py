@@ -20,6 +20,7 @@ import json
 import os
 import sys
 import time
+from pathlib import Path
 from typing import Any, Dict, List, Optional
 
 from . import __version__, api, config, deviceauth, render, schedule, storage, style
@@ -186,7 +187,7 @@ def cmd_auth_login(args: argparse.Namespace) -> int:
                 "credential": config.mask(token),
             })
         else:
-            print(f"\n{style.ok('✓')} signed in as {style.paint(identity, 'bold')}")
+            print(f"\n{style.tick()} signed in as {style.paint(identity, 'bold')}")
             print(f"  credential {config.mask(token)} stored in "
                   f"{storage.describe_backend(backend)}")
             print(f"  scopes: {', '.join(scopes)}   expires: {render.fmt_ts(outcome.get('expires_at'))}")
@@ -289,7 +290,7 @@ def cmd_auth_logout(args: argparse.Namespace) -> int:
             client = Client(settings.base_url, settings.api_key)
             try:
                 deviceauth.logout(client)
-                print(f"{style.ok('✓')} device credential revoked on FN2 AI.")
+                print(f"{style.tick()} device credential revoked on FN2 AI.")
             except AuthError:
                 # 401/403 = the credential is already dead server-side. Same end state.
                 print("credential was already revoked or expired on FN2 AI.")
@@ -458,6 +459,109 @@ def cmd_doctor(args: argparse.Namespace) -> int:
 
 
 # ---------------------------------------------------------------------------
+# launcher: put `fn2` on PATH
+# ---------------------------------------------------------------------------
+# Installing a plugin gives you a skill, not a binary; nothing touches PATH.
+# This writes a launcher that re-resolves the helper on every run, so a plugin
+# update (which moves the versioned install directory) cannot strand it.
+_LAUNCHER = """#!/bin/sh
+# fn2 launcher, written by `fn2 link`. Do not edit: re-run `fn2 link` instead.
+# Resolves the newest installed copy at run time, so plugin updates just work.
+claude_home="${CLAUDE_CONFIG_DIR:-$HOME/.claude}"
+codex_home="${CODEX_HOME:-$HOME/.codex}"
+helper=$(ls -td "$claude_home"/plugins/cache/*/*/*/skills/fn2 \\
+                "$codex_home"/plugins/cache/*/*/*/skills/fn2 \\
+                "$claude_home"/skills/fn2 \\
+                "$codex_home"/skills/fn2 \\
+                "$HOME"/.agents/skills/fn2 \\
+                "${HERMES_HOME:-$HOME/.hermes}"/skills/fn2 2>/dev/null | head -1)
+if [ -z "$helper" ]; then
+    echo "fn2: skill not found. Reinstall the plugin, or run \\`fn2 link\\` again." >&2
+    exit 127
+fi
+exec "${FN2_PYTHON:-python3}" "$helper/scripts/fn2" "$@"
+"""
+
+
+def _path_entries() -> List[str]:
+    return [p for p in os.environ.get("PATH", "").split(os.pathsep) if p]
+
+
+def _launcher_target(explicit: Optional[str]) -> Path:
+    """Pick a bin directory: prefer one already on PATH that we can write to."""
+    if explicit:
+        return Path(explicit).expanduser() / "fn2"
+    home = Path.home()
+    candidates = [home / ".local" / "bin", home / "bin", Path("/usr/local/bin")]
+    on_path = set(_path_entries())
+    writable = [d for d in candidates
+                if d.is_dir() and os.access(str(d), os.W_OK)]
+    for directory in writable:
+        if str(directory) in on_path:
+            return directory / "fn2"
+    if writable:
+        return writable[0] / "fn2"
+    return candidates[0] / "fn2"  # created below
+
+
+def cmd_link(args: argparse.Namespace) -> int:
+    target = _launcher_target(getattr(args, "dir", None))
+    try:
+        target.parent.mkdir(parents=True, exist_ok=True)
+        target.write_text(_LAUNCHER, encoding="utf-8")
+        os.chmod(str(target), 0o755)
+    except OSError as exc:
+        print(f"error: could not write {target}: {exc}", file=sys.stderr)
+        print("Pass a writable directory with --dir, e.g. `fn2 link --dir ~/bin`.",
+              file=sys.stderr)
+        return 1
+
+    print(f"{style.tick()} installed {style.paint(str(target), 'cyan')}")
+    if str(target.parent) not in _path_entries():
+        rc = "~/.zshrc" if os.environ.get("SHELL", "").endswith("zsh") else "~/.bashrc"
+        print(f"\n{target.parent} is not on your PATH. Add it:\n")
+        print(f'    echo \'export PATH="{target.parent}:$PATH"\' >> {rc}')
+        print(f"    exec $SHELL -l\n")
+    else:
+        print("  run `fn2 auth login` to connect your account.")
+    return 0
+
+
+def cmd_unlink(args: argparse.Namespace) -> int:
+    explicit = getattr(args, "dir", None)
+    # Scan every place `link` could have chosen, not just the one it would
+    # choose now: PATH may differ between the two invocations.
+    home = Path.home()
+    candidates = [Path(explicit).expanduser() / "fn2"] if explicit else [
+        d / "fn2" for d in (home / ".local" / "bin", home / "bin",
+                            Path("/usr/local/bin"))
+    ] + [Path(d) / "fn2" for d in _path_entries()]
+
+    removed = 0
+    seen = set()
+    for target in candidates:
+        if str(target) in seen:
+            continue
+        seen.add(str(target))
+        if not target.is_file():
+            continue
+        if "written by `fn2 link`" not in target.read_text(encoding="utf-8",
+                                                           errors="replace"):
+            print(f"skipped {target}: not written by `fn2 link`.", file=sys.stderr)
+            continue
+        try:
+            target.unlink()
+        except OSError as exc:
+            print(f"error: could not remove {target}: {exc}", file=sys.stderr)
+            return 1
+        print(f"removed {target}")
+        removed += 1
+    if not removed:
+        print("no `fn2 link` launcher found.")
+    return 0
+
+
+# ---------------------------------------------------------------------------
 # account / onboarding (manual API-key fallback)
 # ---------------------------------------------------------------------------
 def cmd_login(args: argparse.Namespace) -> int:
@@ -493,7 +597,7 @@ def cmd_login(args: argparse.Namespace) -> int:
         return 1
 
     backend = storage.store_credential(token, base_url=settings.base_url, kind="api_key")
-    print(f"\n{style.ok('✓')} signed in: key {config.mask(token)} stored in "
+    print(f"\n{style.tick()} signed in: key {config.mask(token)} stored in "
           f"{storage.describe_backend(backend)}")
     render.usage(info)
     return 0
@@ -524,6 +628,83 @@ def cmd_models(args: argparse.Namespace) -> int:
 
 
 # ---------------------------------------------------------------------------
+# agent references
+# ---------------------------------------------------------------------------
+_TERMINAL_RUN_STATES = frozenset({"completed", "failed", "cancelled", "error"})
+
+
+def _looks_like_id(value: str) -> bool:
+    return len(value) == 36 and value.count("-") == 4
+
+
+def _resolve_agent(client: Client, value: str) -> str:
+    """Accept a full id, an id prefix, or a name.
+
+    `fn2 agents` prints 8-character ids, so demanding all 36 back made the
+    output un-pasteable. A full id costs no extra request; anything shorter
+    resolves against your agent list and refuses to guess when ambiguous.
+    """
+    value = (value or "").strip()
+    if not value:
+        raise SystemExit("error: no agent id given.")
+    if _looks_like_id(value):
+        return value
+
+    items = api.list_agents(client, limit=100).get("agents") or []
+    needle = value.lower()
+
+    def ident(a: Dict[str, Any]) -> str:
+        return str(a.get("id") or a.get("agent_id") or "")
+
+    exact = [a for a in items if ident(a).lower() == needle]
+    if not exact:
+        exact = [a for a in items if str(a.get("name", "")).lower() == needle]
+    matches = exact or [a for a in items if ident(a).lower().startswith(needle)]
+    if not matches:
+        matches = [a for a in items if needle in str(a.get("name", "")).lower()]
+
+    if len(matches) == 1:
+        return ident(matches[0])
+    if not matches:
+        raise SystemExit(
+            f"error: no agent matches {value!r}. Run `fn2 agents` to see them."
+        )
+    listing = "\n".join(f"  {ident(a)[:8]}  {a.get('name', '?')}" for a in matches[:8])
+    raise SystemExit(f"error: {value!r} matches {len(matches)} agents:\n{listing}\n"
+                     "Use a longer id prefix.")
+
+
+def _await_run(client: Client, agent_id: str, run_id: str, timeout: float,
+               say) -> Dict[str, Any]:
+    """Block until the run is terminal, using the API's own long-poll."""
+    deadline = time.time() + max(0.0, timeout)
+    run: Dict[str, Any] = {}
+    said = False
+    while True:
+        remaining = deadline - time.time()
+        run = api.get_run(client, agent_id, run_id,
+                          wait=max(0, min(25, int(remaining))))
+        if str(run.get("status", "")).lower() in _TERMINAL_RUN_STATES:
+            return run
+        if remaining <= 0:
+            say(f"still {run.get('status', 'running')} after {int(timeout)}s; "
+                f"read it later with `fn2 result {agent_id[:8]} {run_id[:8]}`.")
+            return run
+        if not said:
+            say("waiting for the run to finish (Ctrl-C is safe)...")
+            said = True
+
+
+def _first_run_id(client: Client, agent_id: str, *, wait: int = 0) -> Optional[str]:
+    data = api.list_runs(client, agent_id, limit=1, wait=wait or None)
+    runs = data.get("runs") if isinstance(data, dict) else data
+    if not runs:
+        return None
+    first = runs[0]
+    return str(first.get("run_id") or first.get("id") or "") or None
+
+
+# ---------------------------------------------------------------------------
 # create / inspect
 # ---------------------------------------------------------------------------
 def cmd_start(args: argparse.Namespace) -> int:
@@ -543,16 +724,28 @@ def cmd_start(args: argparse.Namespace) -> int:
         return 0
 
     agent_id = agent.get("id") or agent.get("agent_id")
-    print(f"{style.ok('✓')} agent created: {style.paint(str(agent_id), 'cyan')}")
+    print(f"{style.tick()} agent created: {style.paint(str(agent_id), 'cyan')}")
     print(f"  cadence: {style.paint(sched.summary, 'bold')}")
     if sched.kind == "now":
         print("  running now.")
         print(f"  watch it:  fn2 status {agent_id}")
     else:
         print(f"  inspect:   fn2 status {agent_id}")
-    print(f"  results:   fn2 result {agent_id} <run_id> (also in the web app)")
+    print(f"  results:   fn2 result {agent_id} (also in the web app)")
     if getattr(args, "email", False):
         print("  delivery:  emailed to your verified account address on completion.")
+
+    if getattr(args, "wait", False) and sched.kind == "now":
+        say = lambda message: print(f"  {message}")
+        run_id = _first_run_id(client, str(agent_id), wait=10)
+        if not run_id:
+            say("no run has appeared yet; try `fn2 runs " f"{str(agent_id)[:8]}`.")
+            return 0
+        run = _await_run(client, str(agent_id), run_id, args.timeout, say)
+        print()
+        render.run_result(run)
+        if str(run.get("status", "")).lower() in ("failed", "error"):
+            return 1
     return 0
 
 
@@ -571,15 +764,16 @@ def cmd_status(args: argparse.Namespace) -> int:
         _out(args, data, render.agents)
         return 0
 
-    agent = api.get_agent(client, args.agent_id)
+    agent_id = _resolve_agent(client, args.agent_id)
+    agent = api.get_agent(client, agent_id)
     if getattr(args, "json", False):
-        recent = api.list_runs(client, args.agent_id, limit=args.runs)
+        recent = api.list_runs(client, agent_id, limit=args.runs)
         render.emit_json({"agent": agent, "recent_runs": recent})
         return 0
     render.agent_detail(agent)
     if args.runs:
-        print("\nrecent runs:")
-        render.runs(api.list_runs(client, args.agent_id, limit=args.runs))
+        print("\n" + style.label("recent runs:"))
+        render.runs(api.list_runs(client, agent_id, limit=args.runs))
     return 0
 
 
@@ -588,27 +782,43 @@ def cmd_status(args: argparse.Namespace) -> int:
 # ---------------------------------------------------------------------------
 def cmd_run(args: argparse.Namespace) -> int:
     client = _client(args)
-    result = api.run_agent(client, args.agent_id)
+    agent_id = _resolve_agent(client, args.agent_id)
+    result = api.run_agent(client, agent_id)
+    run_id = str(result.get("run_id") or result.get("id") or "")
+
+    if getattr(args, "wait", False) and run_id:
+        run = _await_run(client, agent_id, run_id, args.timeout,
+                         lambda message: print(message, file=sys.stderr))
+        _out(args, run, render.run_result)
+        return 1 if str(run.get("status", "")).lower() in ("failed", "error") else 0
+
     if getattr(args, "json", False):
         render.emit_json(result)
         return 0
-    run_id = result.get("run_id") or result.get("id")
-    print(f"{style.ok('✓')} run queued: {style.paint(str(run_id), 'cyan')} "
+    print(f"{style.tick()} run queued: {style.paint(run_id, 'cyan')} "
           f"({result.get('status', 'pending')})")
-    print(f"  result: fn2 result {args.agent_id} {run_id}")
+    print(f"  result: fn2 result {agent_id[:8]}")
     return 0
 
 
 def cmd_runs(args: argparse.Namespace) -> int:
     client = _client(args)
-    data = api.list_runs(client, args.agent_id, limit=args.limit, offset=args.offset)
+    data = api.list_runs(client, _resolve_agent(client, args.agent_id),
+                         limit=args.limit, offset=args.offset)
     _out(args, data, render.runs)
     return 0
 
 
 def cmd_result(args: argparse.Namespace) -> int:
     client = _client(args)
-    data = api.get_run(client, args.agent_id, args.run_id)
+    agent_id = _resolve_agent(client, args.agent_id)
+    run_id = (args.run_id or "").strip()
+    if run_id in ("", "latest", "last"):
+        # The common case is "show me what it just found".
+        run_id = _first_run_id(client, agent_id) or ""
+        if not run_id:
+            raise SystemExit(f"error: agent {agent_id[:8]} has no runs yet.")
+    data = api.get_run(client, agent_id, run_id)
     _out(args, data, render.run_result)
     return 0
 
@@ -618,20 +828,23 @@ def cmd_result(args: argparse.Namespace) -> int:
 # ---------------------------------------------------------------------------
 def cmd_pause(args: argparse.Namespace) -> int:
     client = _client(args)
-    api.update_agent(client, args.agent_id, status="paused")
-    print(f"{style.paint('⏸', 'yellow')} paused {args.agent_id}")
+    agent_id = _resolve_agent(client, args.agent_id)
+    api.update_agent(client, agent_id, status="paused")
+    print(f"{style.paint(style.glyph('pause'), 'yellow')} paused {agent_id}")
     return 0
 
 
 def cmd_resume(args: argparse.Namespace) -> int:
     client = _client(args)
-    api.update_agent(client, args.agent_id, status="active")
-    print(f"{style.ok('▶')} resumed {args.agent_id}")
+    agent_id = _resolve_agent(client, args.agent_id)
+    api.update_agent(client, agent_id, status="active")
+    print(f"{style.ok(style.glyph('play'))} resumed {agent_id}")
     return 0
 
 
 def cmd_schedule(args: argparse.Namespace) -> int:
     client = _client(args)
+    agent_id = _resolve_agent(client, args.agent_id)
     sched = schedule.parse_when(args.when, timezone=args.tz)
     if sched.kind == "now" or sched.payload is None:
         print("error: give a cadence, e.g. 'before market open', 'weekdays at 8am', "
@@ -640,21 +853,28 @@ def cmd_schedule(args: argparse.Namespace) -> int:
     payload = sched.payload
     if args.ends and sched.kind == "recurring":
         payload = {**payload, "ends_at": args.ends}
-    api.update_agent(client, args.agent_id, schedule=payload)
-    print(f"{style.ok('✓')} rescheduled {args.agent_id}: "
+    api.update_agent(client, agent_id, schedule=payload)
+    print(f"{style.tick()} rescheduled {agent_id[:8]}: "
           f"{style.paint(sched.summary, 'bold')}")
     return 0
 
 
 def cmd_delete(args: argparse.Namespace) -> int:
     client = _client(args)
+    agent_id = _resolve_agent(client, args.agent_id)
     if not args.yes and sys.stdin.isatty():
-        reply = input(f"delete agent {args.agent_id} and its history? [y/N] ").strip().lower()
+        # Name the agent, not just its id: a prefix match must be confirmable.
+        try:
+            name = api.get_agent(client, agent_id).get("name") or agent_id
+        except ApiError:
+            name = agent_id
+        reply = input(f"delete agent {name!r} ({agent_id[:8]}) and its history? "
+                      "[y/N] ").strip().lower()
         if reply not in ("y", "yes"):
             print("aborted.")
             return 1
-    api.delete_agent(client, args.agent_id)
-    print(f"{style.bad('🗑')} deleted {args.agent_id}")
+    api.delete_agent(client, agent_id)
+    print(f"{style.bad(style.glyph('trash'))} deleted {agent_id}")
     return 0
 
 
@@ -710,6 +930,13 @@ def build_parser() -> argparse.ArgumentParser:
     p = add("doctor", cmd_doctor, "diagnose config, storage, and connectivity")
     add_json(p)
 
+    p = add("link", cmd_link, "put an `fn2` launcher on your PATH")
+    p.add_argument("--dir", help="bin directory to install into (default: the "
+                                 "first writable one already on PATH)")
+
+    p = add("unlink", cmd_unlink, "remove the launcher `fn2 link` installed")
+    p.add_argument("--dir", help="where it was installed")
+
     p = add("login", cmd_login, "connect with a manual API key (advanced fallback)")
     p.add_argument("--token", help="an fn2_… API key (prefer `fn2 auth login`)")
 
@@ -732,6 +959,11 @@ def build_parser() -> argparse.ArgumentParser:
     p.add_argument("--ends", metavar="YYYY-MM-DD", help="stop recurring after this date")
     p.add_argument("--email", action="store_true",
                    help="email each completed run to your verified account address")
+    p.add_argument("--wait", action="store_true",
+                   help="when it runs now, block until the run finishes and "
+                        "print the result")
+    p.add_argument("--timeout", type=float, default=300.0, metavar="SECONDS",
+                   help="how long --wait blocks (default: 300)")
 
     p = add("agents", cmd_agents, "list your agents", aliases=("list", "ls"))
     p.add_argument("--status", help="filter by status (active, paused, …)")
@@ -739,36 +971,43 @@ def build_parser() -> argparse.ArgumentParser:
     p.add_argument("--offset", type=int, default=0)
 
     p = add("status", cmd_status, "overview of all agents, or detail for one")
-    p.add_argument("agent_id", nargs="?", help="agent id (omit for the overview)")
+    p.add_argument("agent_id", nargs="?",
+                   help="id, id prefix, or name (omit for the overview)")
     p.add_argument("--runs", type=int, default=5, help="recent runs to show (detail view)")
     p.add_argument("--limit", type=int, default=50, help="agents to show (overview)")
 
     p = add("run", cmd_run, "trigger an agent immediately")
-    p.add_argument("agent_id")
+    p.add_argument("agent_id", help="id, id prefix, or name")
+    p.add_argument("--wait", action="store_true",
+                   help="block until the run finishes and print the result")
+    p.add_argument("--timeout", type=float, default=300.0, metavar="SECONDS",
+                   help="how long --wait blocks (default: 300)")
+    add_json(p)
 
     p = add("runs", cmd_runs, "list an agent's runs")
-    p.add_argument("agent_id")
+    p.add_argument("agent_id", help="id, id prefix, or name")
     p.add_argument("--limit", type=int, default=20)
     p.add_argument("--offset", type=int, default=0)
 
     p = add("result", cmd_result, "show one run's outcome and output")
-    p.add_argument("agent_id")
-    p.add_argument("run_id")
+    p.add_argument("agent_id", help="id, id prefix, or name")
+    p.add_argument("run_id", nargs="?", default="latest",
+                   help="run id (default: the most recent run)")
 
     p = add("pause", cmd_pause, "pause a scheduled agent")
-    p.add_argument("agent_id")
+    p.add_argument("agent_id", help="id, id prefix, or name")
 
     p = add("resume", cmd_resume, "resume a paused agent")
-    p.add_argument("agent_id")
+    p.add_argument("agent_id", help="id, id prefix, or name")
 
     p = add("schedule", cmd_schedule, "change an agent's cadence")
-    p.add_argument("agent_id")
+    p.add_argument("agent_id", help="id, id prefix, or name")
     p.add_argument("when", help="new cadence (see `start --when`)")
     p.add_argument("--tz", help="IANA timezone")
     p.add_argument("--ends", metavar="YYYY-MM-DD")
 
     p = add("delete", cmd_delete, "delete an agent and its history", aliases=("rm",))
-    p.add_argument("agent_id")
+    p.add_argument("agent_id", help="id, id prefix, or name")
     p.add_argument("--yes", action="store_true", help="skip the confirmation prompt")
 
     return parser

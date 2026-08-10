@@ -40,20 +40,17 @@ def build() -> List[Dict[str, Any]]:
             "cols": 88,
             "hint": 'Try "brief me like this every weekday before the open"',
             "capture": [
-                (f'fn2 start "{fixtures.ASK_PROMPT}"',
-                 ["start", fixtures.ASK_PROMPT]),
-                (f"fn2 result {ASK_AGENT} {ASK_RUN}",
-                 ["result", ASK_AGENT, ASK_RUN]),
+                (f'fn2 start "{fixtures.ASK_PROMPT}" --wait',
+                 ["start", fixtures.ASK_PROMPT, "--wait"]),
             ],
             "messages": [
                 {"role": "user",
                  "text": "what did NVIDIA say about data-center demand on the "
                          "last earnings call?"},
                 {"role": "assistant",
-                 "text": "Running that as a one-off FN2 AI agent, then reading "
-                         "the result."},
+                 "text": "Running that as a one-off FN2 AI agent and waiting for "
+                         "the answer."},
                 {"role": "tool", "capture": 0},
-                {"role": "tool", "capture": 1},
                 {"role": "assistant",
                  "text": "Huang called demand \"parabolic\" and put it down to "
                          "agentic AI; Kress sized AI-infrastructure spend at $3T "

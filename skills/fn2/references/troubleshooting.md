@@ -7,26 +7,21 @@ added to `PATH`. Normally you never type `fn2` at all, you ask the assistant
 ("connect my FN2 AI account", "what are my agents doing?") and it runs the
 bundled helper.
 
-To drive it from a shell yourself, define a function that resolves the helper
-at call time. A marketplace install lives under a versioned directory
-(`~/.claude/plugins/cache/<marketplace>/<plugin>/<version>/skills/fn2`) which
-moves on every update, so a hardcoded alias goes stale:
+To get the command, run the helper once by path and let it install a launcher:
 
 ```bash
-fn2() {
-  local helper
-  helper=$(ls -td "$HOME"/.claude/plugins/cache/*/*/*/skills/fn2 \
-                  "${CODEX_HOME:-$HOME/.codex}"/plugins/cache/*/*/*/skills/fn2 \
-                  "$HOME"/.claude/skills/fn2 \
-                  "${CODEX_HOME:-$HOME/.codex}"/skills/fn2 \
-                  "${HERMES_HOME:-$HOME/.hermes}"/skills/fn2 2>/dev/null | head -1)
-  [ -n "$helper" ] || { echo "fn2 helper not found; install the plugin first" >&2; return 1; }
-  python3 "$helper/scripts/fn2" "$@"
-}
+python3 "${CLAUDE_CONFIG_DIR:-$HOME/.claude}"/plugins/cache/fn2/fn2/*/skills/fn2/scripts/fn2 link
 ```
 
-If that reports "helper not found", confirm the plugin is installed with
-`claude plugin list` and that the path above exists.
+It writes `fn2` into the first writable `bin` directory on your `PATH`, and
+prints the `export PATH=…` line to add if there isn't one. The launcher
+re-resolves the skill on every run, so a plugin update (which moves the
+versioned install directory) cannot strand it. `fn2 unlink` removes it.
+
+If the one-liner itself reports "No such file or directory", the plugin is not
+installed where expected: check `claude plugin list`, and look for
+`plugins/cache/<marketplace>/<plugin>/<version>/skills/fn2` under
+`${CLAUDE_CONFIG_DIR:-$HOME/.claude}`.
 
 ## "not signed in"
 

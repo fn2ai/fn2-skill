@@ -78,11 +78,18 @@ ln -s ~/.fn2-skill/skills/fn2 "${HERMES_HOME:-$HOME/.hermes}/skills/fn2"
 `make install` from a checkout links the canonical skill into Claude, Codex,
 and Pi at once.
 
-> [!NOTE]
-> **Installing the plugin does not put `fn2` on your `PATH`.** It installs a
-> skill your assistant uses; you talk to the assistant, not to a shell command.
-> If you want the command anyway, see
-> [running it yourself](#running-it-yourself) below.
+A plugin installs a **skill**, not a binary, so nothing lands on your `PATH`.
+Usually that is fine: you talk to your assistant, not to a shell command. If
+you want `fn2` in your own terminal too, run this once (or just ask your
+assistant to "put fn2 on my PATH"):
+
+```bash
+python3 "${CLAUDE_CONFIG_DIR:-$HOME/.claude}"/plugins/cache/fn2/fn2/*/skills/fn2/scripts/fn2 link
+```
+
+That writes a small launcher into the first writable `bin` directory on your
+`PATH` and tells you if there isn't one. The launcher re-resolves the skill on
+every run, so plugin updates do not strand it. `fn2 unlink` removes it.
 
 ## Connect your account
 
@@ -90,11 +97,12 @@ Ask your assistant, in as many words:
 
 > *"connect my FN2 AI account"*
 
-It runs the device flow for you. No secret copying: the terminal prints a short
-code and opens `https://fn2.ai/start`. Sign in (or sign up), type the code,
-click **Approve**, done. The CLI receives a scoped, revocable device credential
-and stores it in the macOS Keychain (or an owner-only file on Linux). You never
-see or copy a secret.
+Or, if you linked the command, `fn2 auth login`. Either way it is the same
+browser device flow, with no secret copying: the terminal prints a short code
+and opens `https://fn2.ai/start`. Sign in (or sign up), type the code, click
+**Approve**, done. The CLI receives a scoped, revocable device credential and
+stores it in the macOS Keychain (or an owner-only file on Linux). You never see
+or copy a secret.
 
 <p align="center">
   <img src="docs/media/auth-login.png" alt="fn2 auth login prints a short code, opens fn2.ai/start, and stores a scoped device credential in the macOS Keychain" width="860">
@@ -102,33 +110,26 @@ see or copy a secret.
 
 ## Running it yourself
 
-Every screenshot in this README is a command you can run, once the shell knows
-where the helper lives. A plugin install puts it under a versioned directory
-that changes on every update, so resolve it at call time rather than hardcoding
-a path. Paste this into `~/.zshrc` or `~/.bashrc`:
+Every screenshot in this README is a command you can run once `fn2 link` has
+put the launcher on your `PATH`. A few things make it quick to live in:
 
 ```bash
-fn2() {
-  local helper
-  helper=$(ls -td "$HOME"/.claude/plugins/cache/*/*/*/skills/fn2 \
-                  "${CODEX_HOME:-$HOME/.codex}"/plugins/cache/*/*/*/skills/fn2 \
-                  "$HOME"/.claude/skills/fn2 \
-                  "${CODEX_HOME:-$HOME/.codex}"/skills/fn2 \
-                  "${HERMES_HOME:-$HOME/.hermes}"/skills/fn2 2>/dev/null | head -1)
-  [ -n "$helper" ] || { echo "fn2 helper not found; install the plugin first" >&2; return 1; }
-  python3 "$helper/scripts/fn2" "$@"
-}
+fn2 agents                       # ids print 8 characters wide...
+fn2 status ebab1623              # ...and 8 characters is enough to refer back
+fn2 status "market open"         # so is a name
+fn2 result ebab1623              # newest run, no run id to copy
+fn2 start "..." --wait           # ask and get the answer in one command
+fn2 run ebab1623 --wait          # trigger and block until it finishes
 ```
 
-Then:
-
-```bash
-fn2 auth login     # same device flow, driven by you
-fn2 doctor         # confirm where the credential lives and that fn2.ai is reachable
-```
+Ambiguous references are refused with the candidates listed, never guessed.
+`--wait` uses the API's own long-poll rather than hammering it, and takes
+`--timeout` (default 300s); Ctrl-C is always safe.
 
 Output is colourised when it is going to a terminal and plain everywhere else.
 `--color never` and `NO_COLOR` both turn it off; `--json` is never colourised.
+On a console that cannot encode `✓`, the glyphs fall back to ASCII instead of
+raising `UnicodeEncodeError`.
 
 ## In use
 
@@ -206,8 +207,11 @@ What the credential cannot do, and a one-command health check.
 
 ## Commands
 
+Any command that takes an agent takes an **id, an id prefix, or a name**.
+
 | Command | Does |
 |---|---|
+| `link` / `unlink` | put an `fn2` launcher on your PATH, or take it off |
 | `auth login [--no-browser]` | connect via the browser device flow (code at fn2.ai/start) |
 | `auth status` | storage backend, masked credential, scopes, expiry, live check |
 | `auth logout [--revoke]` | disconnect (optionally revoke the credential on FN2 AI first) |
@@ -215,11 +219,11 @@ What the credential cannot do, and a one-command health check.
 | `doctor` | diagnose config, storage, and connectivity |
 | `login --token` / `whoami` | manual API-key fallback / show plan + quota |
 | `models` | list models available to your account |
-| `start "<prompt>" [--when …]` | create an agent: runs now, or on a schedule |
+| `start "<prompt>" [--when …] [--wait]` | create an agent: runs now, or on a schedule |
 | `agents` (`ls`) | list your agents |
 | `status [<id>]` | overview, or one agent's detail + recent runs |
-| `run <id>` | trigger an agent immediately |
-| `runs <id>` / `result <id> <run_id>` | run history / one run's output |
+| `run <id> [--wait]` | trigger an agent immediately |
+| `runs <id>` / `result <id> [run_id]` | run history / one run's output (default: newest) |
 | `pause` / `resume` / `schedule <id> "<cadence>"` | manage the cadence |
 | `delete <id>` | remove an agent and its history |
 
@@ -284,7 +288,7 @@ skills/fn2/scripts/fn2cli/
   api.py               → one function per FN2 AI endpoint
   schedule.py          → "before market open" into an FN2 AI schedule object
   render.py            → human / JSON output
-  style.py             → ANSI colour, off unless stdout is a terminal
+  style.py             → ANSI colour + glyph fallback, off unless stdout is a terminal
   cli.py               → argument parsing + dispatch
 ```
 

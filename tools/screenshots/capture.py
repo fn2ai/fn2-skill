@@ -32,11 +32,13 @@ sys.path.insert(0, str(SCRIPTS_DIR))
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 
 import fixtures  # noqa: E402  (path set above)
-from fn2cli import cli, client as client_mod, deviceauth, storage  # noqa: E402
+from fn2cli import cli, client as client_mod, deviceauth, storage, style  # noqa: E402
 
 
 class _Tty(io.StringIO):
-    """A capture buffer that claims to be a terminal, like the real thing."""
+    """A capture buffer that claims to be a UTF-8 terminal, like the real thing."""
+
+    encoding = "utf-8"
 
     def isatty(self) -> bool:
         return True
@@ -117,6 +119,8 @@ class DemoBackend:
                 if len(tail) > 2:
                     detail = d["run_detail"]
                     return detail.get(tail[2], d["runs"][0])
+                if agent_id == d["ask_agent_id"]:
+                    return {"runs": [d["run_detail"][d["ask_run_id"]]]}
                 return {"runs": d["runs"], "has_more": True}
         raise AssertionError(f"no demo fixture for {method} {path}")
 
@@ -207,6 +211,7 @@ class _Runner:
 
     def run(self, argv: List[str]) -> str:
         out = _Tty()
+        style.reset_glyph_cache()  # the probe is per-stream
         with contextlib.redirect_stdout(out), contextlib.redirect_stderr(io.StringIO()):
             try:
                 cli.main(argv)
