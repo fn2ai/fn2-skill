@@ -1,0 +1,11 @@
+blank_issues_enabled: false
+contact_links:
+  - name: Account, billing, or plan questions
+    url: https://fn2.ai
+    about: Anything about your fn2 account belongs in the web app, not this repository.
+  - name: Security vulnerability
+    url: https://github.com/fn2ai/fn2-skill/security/advisories/new
+    about: Report privately. Do not open a public issue.
+  - name: Troubleshooting reference
+    url: https://github.com/fn2ai/fn2-skill/blob/main/skills/fn2/references/troubleshooting.md
+    about: Auth, storage, quota, and network errors — with the fix for each.

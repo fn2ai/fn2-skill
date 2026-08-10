@@ -1,0 +1,65 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  test:
+    name: tests · python ${{ matrix.python }}
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        # 3.9 is the floor the skill advertises; the newest is what most
+        # assistants actually ship with.
+        python: ["3.9", "3.10", "3.11", "3.12", "3.13"]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: ${{ matrix.python }}
+      - name: Assert the tree stays dependency-free
+        run: |
+          test ! -f requirements.txt && test ! -f pyproject.toml \
+            || { echo "the skill must not grow install-time dependencies" >&2; exit 1; }
+      - run: make lint
+      - run: make test
+
+  macos:
+    name: tests · macOS (Keychain path)
+    runs-on: macos-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - run: make test
+
+  manifests:
+    name: manifests
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Every JSON manifest parses
+        run: |
+          for f in .claude-plugin/*.json .codex-plugin/*.json .agents/plugins/*.json; do
+            python3 -m json.tool "$f" > /dev/null && echo "ok  $f"
+          done
+      - name: Documentation media is present
+        run: |
+          missing=0
+          for name in banner social-card hero-assistant auth-login agents \
+                      status result scheduling account security; do
+            test -f "docs/media/$name.png" || { echo "missing docs/media/$name.png" >&2; missing=1; }
+          done
+          exit $missing

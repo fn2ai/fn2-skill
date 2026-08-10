@@ -1,0 +1,27 @@
+name: Feature request
+description: Suggest a command, cadence phrase, or workflow
+labels: ["enhancement"]
+body:
+  - type: textarea
+    id: problem
+    attributes:
+      label: What are you trying to do
+      description: The task, not the implementation. What would you say to your assistant?
+      placeholder: '"tell me when any watchlist name gaps more than 5% at the open"'
+    validations:
+      required: true
+
+  - type: textarea
+    id: today
+    attributes:
+      label: How you do it today
+      description: Which commands, web-app steps, or workarounds you use now.
+
+  - type: checkboxes
+    id: scope
+    attributes:
+      label: Where does it belong
+      options:
+        - label: the CLI/skill (this repository)
+        - label: the fn2 API or web app (we will route it)
+        - label: not sure

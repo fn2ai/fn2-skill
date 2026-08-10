@@ -93,7 +93,7 @@ class PackagingTests(unittest.TestCase):
                 version = subprocess.run(
                     [sys.executable, str(link / "scripts" / "fn2"), "--version"],
                     check=True, text=True, capture_output=True).stdout.strip()
-                self.assertEqual(version, "fn2-skill 0.2.1")
+                self.assertEqual(version, "fn2-skill 0.3.0")
 
             subprocess.run(
                 ["make", "uninstall"], cwd=ROOT, env=env,

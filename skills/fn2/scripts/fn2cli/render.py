@@ -86,6 +86,20 @@ def table(headers: Sequence[str], rows: Sequence[Sequence[Any]]) -> None:
         print("  ".join(cells[i].ljust(widths[i]) for i in range(len(cells))).rstrip())
 
 
+def _market_phrase(freq: str, offset: Any) -> str:
+    """"market_open" + -30 -> "30m before open". The server owns the calendar."""
+    boundary = "open" if freq == "market_open" else "close"
+    try:
+        minutes = int(offset)
+    except (TypeError, ValueError):
+        minutes = 0
+    if minutes < 0:
+        return f"{abs(minutes)}m before {boundary}"
+    if minutes > 0:
+        return f"{minutes}m after {boundary}"
+    return f"at the {boundary}"
+
+
 def describe_schedule(agent: Dict[str, Any]) -> str:
     schedule = agent.get("schedule")
     if isinstance(schedule, dict):
@@ -95,6 +109,8 @@ def describe_schedule(agent: Dict[str, Any]) -> str:
         cron = schedule.get("cron")
         if freq == "custom" and cron:
             return f"cron {cron}"
+        if freq in ("market_open", "market_close"):
+            return _market_phrase(freq, schedule.get("offset_minutes"))
         if freq:
             return str(freq)
     if agent.get("recurring") is False:
@@ -210,20 +226,22 @@ def run_result(r: Dict[str, Any]) -> None:
 
 
 def usage(u: Dict[str, Any]) -> None:
-    print(f"plan      {u.get('plan', '?')}")
+    # Label column is 11 wide to line up with `whoami`'s endpoint/credential
+    # rows and with `auth status` — these views print next to each other.
+    print(f"plan       {u.get('plan', '?')}")
     tokens = u.get("tokens")
     if isinstance(tokens, dict):
         if tokens.get("unlimited"):
-            print(f"tokens    {tokens.get('used', 0):,} used (unlimited)")
+            print(f"tokens     {tokens.get('used', 0):,} used (unlimited)")
         else:
-            print(f"tokens    {tokens.get('used', 0):,} used / "
+            print(f"tokens     {tokens.get('used', 0):,} used / "
                   f"{tokens.get('limit', 0):,} limit / "
                   f"{tokens.get('remaining', 0):,} left")
         if tokens.get("resets_at"):
-            print(f"resets    {fmt_ts(tokens['resets_at'])}")
+            print(f"resets     {fmt_ts(tokens['resets_at'])}")
     key = u.get("api_key")
     if isinstance(key, dict):
-        print(f"key       {key.get('name', '?')} "
+        print(f"key        {key.get('name', '?')} "
               f"({key.get('total_requests', 0)} requests)")
     device = u.get("device")
     if isinstance(device, dict):
@@ -233,7 +251,7 @@ def usage(u: Dict[str, Any]) -> None:
             parts.append(f"scopes: {', '.join(scopes)}")
         if device.get("expires_at"):
             parts.append(f"expires {fmt_ts(device['expires_at'])}")
-        print(f"device    {' — '.join(parts)}")
+        print(f"device     {' — '.join(parts)}")
 
 
 def models(payload: Any) -> None:
@@ -244,7 +262,9 @@ def models(payload: Any) -> None:
             _first(m, "model_id", "id", default="?"),
             (_first(m, "display_name", "name", default="") or "")[:30],
             _first(m, "model_class", default="—"),
-            _first(m, "required_plan", default="") or "",
+            # No required_plan means every plan can run it — say so rather
+            # than leaving a column of blanks.
+            _first(m, "required_plan", default="any") or "any",
             "★" if m.get("is_default") else "",
         ])
     table(["MODEL ID", "NAME", "CLASS", "PLAN", "DEFAULT"], rows)

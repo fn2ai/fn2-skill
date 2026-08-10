@@ -1,0 +1,10 @@
+# Default owner for everything in this repository.
+*                       @oceanplexian
+
+# The shipped skill: anything here changes what assistants execute.
+/skills/                @oceanplexian
+
+# Security-sensitive surfaces — credential handling and origin pinning.
+/skills/fn2/scripts/fn2cli/config.py      @oceanplexian
+/skills/fn2/scripts/fn2cli/storage.py     @oceanplexian
+/skills/fn2/scripts/fn2cli/deviceauth.py  @oceanplexian

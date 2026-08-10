@@ -1,0 +1,51 @@
+name: Bug report
+description: Something in the skill or CLI behaves incorrectly
+labels: ["bug"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thanks for the report. **Never paste a credential** — `fn2 …` output is
+        already redacted to a masked `fn2d_…wxyz` form, so copy it verbatim
+        rather than editing it.
+
+  - type: textarea
+    id: what
+    attributes:
+      label: What happened
+      description: What you ran, what you expected, what you got instead.
+      placeholder: |
+        $ fn2 start "…" --when "market close"
+        error: …
+    validations:
+      required: true
+
+  - type: textarea
+    id: doctor
+    attributes:
+      label: "`fn2 doctor` output"
+      description: Run `fn2 doctor` and paste the whole thing. It is safe to share.
+      render: text
+    validations:
+      required: true
+
+  - type: dropdown
+    id: harness
+    attributes:
+      label: Assistant
+      options:
+        - Claude Code
+        - OpenAI Codex
+        - Pi
+        - none — running the CLI directly
+        - other
+    validations:
+      required: true
+
+  - type: input
+    id: os
+    attributes:
+      label: OS and Python
+      placeholder: "macOS 15.3, python 3.12.4"
+    validations:
+      required: true

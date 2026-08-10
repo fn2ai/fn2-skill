@@ -1,6 +1,6 @@
 {
   "name": "fn2",
-  "version": "0.2.1",
+  "version": "0.3.0",
   "description": "Start, monitor, and schedule fn2.ai autonomous research agents for public markets from your terminal assistant.",
   "author": {
     "name": "fn2",
@@ -19,13 +19,18 @@
     "category": "Productivity",
     "capabilities": ["Interactive", "Read", "Write"],
     "websiteURL": "https://fn2.ai",
-    "brandColor": "#0B5FFF",
+    "brandColor": "#FF6A00",
     "composerIcon": "./assets/icon.svg",
     "logo": "./assets/logo.svg",
     "defaultPrompt": [
       "Use $fn2 to show the status of my fn2 agents.",
       "Use $fn2 to schedule a pre-market brief on my watchlist before the next market open."
     ],
-    "screenshots": []
+    "screenshots": [
+      "./docs/media/hero-assistant.png",
+      "./docs/media/agents.png",
+      "./docs/media/result.png",
+      "./docs/media/auth-login.png"
+    ]
   }
 }

@@ -1,0 +1,8 @@
+* text=auto eol=lf
+
+*.png binary
+*.woff2 binary
+
+# Generated documentation media: keep it out of diffs and language stats.
+docs/media/*.png linguist-generated=true
+tools/screenshots/fonts/** linguist-vendored=true

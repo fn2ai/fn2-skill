@@ -11,13 +11,14 @@ HERMES_HOME ?= $(HOME)/.hermes
 CLAUDE_SKILLS := $(CLAUDE_CONFIG_DIR)/skills
 CODEX_SKILLS := $(CODEX_HOME)/skills
 
-.PHONY: help test lint validate install install-claude install-codex install-pi uninstall
+.PHONY: help test lint validate media install install-claude install-codex install-pi uninstall
 
 help:
 	@echo "fn2 skill targets:"
 	@echo "  make test      run the unit tests (no network)"
 	@echo "  make lint      byte-compile every module"
 	@echo "  make validate  validate the Claude plugin when Claude Code is installed"
+	@echo "  make media     regenerate docs/media (needs Chromium + ImageMagick)"
 	@echo "  make install   symlink into detected harnesses (Claude / Codex / Pi)"
 	@echo "  make uninstall remove those symlinks"
 
@@ -35,6 +36,9 @@ validate:
 	else \
 		echo "skip — Claude Code is not installed"; \
 	fi
+
+media:
+	$(PYTHON) tools/screenshots/generate.py
 
 install: install-claude install-codex install-pi
 	@echo "done."

@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import contextlib
 import io
 import json
 import os
@@ -301,6 +302,43 @@ class RenderTests(unittest.TestCase):
     def test_rel_ts_handles_bad_input(self):
         self.assertEqual(render.rel_ts(None), "never")
         self.assertEqual(render.rel_ts("not-a-date"), "not-a-date")
+
+    def test_market_schedules_read_as_english(self):
+        describe = render.describe_schedule
+        self.assertEqual(
+            describe({"schedule": {"frequency": "market_open", "offset_minutes": -30}}),
+            "30m before open")
+        self.assertEqual(
+            describe({"schedule": {"frequency": "market_close", "offset_minutes": 5}}),
+            "5m after close")
+        # A missing/zero offset must still name the boundary, not crash.
+        self.assertEqual(
+            describe({"schedule": {"frequency": "market_close"}}), "at the close")
+        # Non-market cadences are untouched.
+        self.assertEqual(describe({"schedule": {"frequency": "weekdays"}}), "weekdays")
+        self.assertEqual(
+            describe({"schedule": {"frequency": "custom", "cron": "0 9 * * 1-5"}}),
+            "cron 0 9 * * 1-5")
+
+    def test_model_without_plan_lock_says_any(self):
+        buffer = io.StringIO()
+        with contextlib.redirect_stdout(buffer):
+            render.models([{"model_id": "m", "required_plan": None},
+                           {"model_id": "n", "required_plan": "pro"}])
+        rows = buffer.getvalue().splitlines()
+        self.assertIn("any", rows[2])
+        self.assertIn("pro", rows[3])
+
+    def test_usage_labels_align_with_whoami(self):
+        buffer = io.StringIO()
+        with contextlib.redirect_stdout(buffer):
+            render.usage({"plan": "pro", "tokens": {"used": 1, "limit": 2,
+                                                    "remaining": 1}})
+        # `whoami` prints "endpoint   …" above this block; every label column
+        # in the account views is 11 characters wide.
+        for line in buffer.getvalue().splitlines():
+            label = line.split(" ", 1)[0]
+            self.assertEqual(line[:11], label.ljust(11), line)
 
 
 if __name__ == "__main__":

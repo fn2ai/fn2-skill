@@ -1,11 +1,28 @@
-<svg xmlns="http://www.w3.org/2000/svg" width="360" height="128" viewBox="0 0 360 128" role="img" aria-label="fn2 Agents">
-  <rect x="0" y="0" width="128" height="128" rx="28" fill="#0B5FFF"/>
-  <polyline points="26,86 52,60 70,74 102,38"
-            fill="none" stroke="#FFFFFF" stroke-width="9"
-            stroke-linecap="round" stroke-linejoin="round"/>
-  <circle cx="102" cy="38" r="8" fill="#FFFFFF"/>
-  <text x="152" y="70" font-family="'Helvetica Neue',Arial,sans-serif"
-        font-size="52" font-weight="700" fill="#0B1220">fn2</text>
-  <text x="152" y="100" font-family="'Helvetica Neue',Arial,sans-serif"
-        font-size="22" font-weight="500" fill="#5B6472">agents</text>
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 420 110" width="420" height="110" role="img" aria-label="FN2.AI skill">
+  <defs>
+    <linearGradient id="fn2logo" x1="0" y1="1" x2="1" y2="0">
+      <stop offset="0" stop-color="#FF3F00"/>
+      <stop offset="0.55" stop-color="#FF8E00"/>
+      <stop offset="1" stop-color="#FFCA00"/>
+    </linearGradient>
+  </defs>
+  <g transform="translate(4 8) scale(0.94)" fill="url(#fn2logo)">
+    <rect x="10" y="65" width="15" height="30" rx="2"/>
+    <rect x="30" y="52" width="15" height="43" rx="2"/>
+    <rect x="50" y="55" width="15" height="40" rx="2"/>
+    <rect x="70" y="25" width="15" height="70" rx="2"/>
+    <circle cx="17.5" cy="40" r="6"/>
+    <circle cx="37.5" cy="18" r="6"/>
+    <circle cx="57.5" cy="28" r="6"/>
+    <circle cx="77.5" cy="10" r="6"/>
+    <polyline points="17.5,40 37.5,18 57.5,28 77.5,10" fill="none"
+              stroke="url(#fn2logo)" stroke-width="3"
+              stroke-linecap="round" stroke-linejoin="round"/>
+  </g>
+  <g font-family="'Libre Franklin','Helvetica Neue',Helvetica,Arial,sans-serif"
+     font-size="46" letter-spacing="-0.7">
+    <text x="112" y="70" font-weight="600" fill="#E9EDF3">FN2</text>
+    <text x="194" y="70" font-weight="500" fill="#8A93A3">.AI</text>
+    <text x="266" y="70" font-weight="500" fill="#FF8E00" font-size="34">skill</text>
+  </g>
 </svg>
