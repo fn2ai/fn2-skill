@@ -21,8 +21,6 @@
 
 ## Get started
 
-**1. Install.**
-
 <table>
 <tr><th align="left">Claude Code</th><th align="left">Codex</th></tr>
 <tr valign="top">
@@ -45,18 +43,11 @@ codex plugin add fn2@fn2
 </tr>
 </table>
 
-**2. Connect.** Ask your assistant:
+Then ask your assistant:
 
 > *"connect my FN2 AI account"*
 
-Your browser opens [fn2.ai/start](https://fn2.ai/start) with a short code to
-enter. Sign in, click **Approve**, done. You never see or copy a secret.
-
-<p align="center">
-  <img src="docs/media/auth-login.png" alt="fn2 auth login prints a short code, opens fn2.ai/start, and stores a scoped device credential in the macOS Keychain" width="860">
-</p>
-
-**3. Ask something.**
+A short code, a browser tab, click **Approve** — connected. Ask it anything:
 
 > *"what did NVIDIA say about data-center demand on the last earnings call?"*
 
@@ -118,6 +109,10 @@ every run, so plugin updates do not strand it. `fn2 unlink` removes it.
 Once linked, `fn2 auth login` is the same browser device flow as asking your
 assistant to connect: code in the terminal, approval at `fn2.ai/start`,
 credential in the Keychain.
+
+<p align="center">
+  <img src="docs/media/auth-login.png" alt="fn2 auth login prints a short code, opens fn2.ai/start, and stores a scoped device credential in the macOS Keychain" width="860">
+</p>
 
 ## Running it yourself
 
