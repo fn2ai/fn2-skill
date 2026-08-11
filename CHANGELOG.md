@@ -5,6 +5,33 @@ Notable changes to the FN2 AI skill. The format follows
 [semantic versioning](https://semver.org/spec/v2.0.0.html) on the CLI's
 user-visible surface.
 
+## [0.6.0] - 2026-08-11
+
+### Fixed
+
+- **The browser actually opens when an assistant runs the sign-in.** Auto-open
+  was gated on stdout being a terminal, but the normal caller is Claude Code or
+  Codex driving the CLI through a pipe: nothing opened, and nothing said why.
+  The gate is now "can this machine show a browser window": always on macOS
+  and Windows, on Linux when `DISPLAY` / `WAYLAND_DISPLAY` is present, never
+  over a plain SSH session. `--no-browser` still turns it off.
+- **The code and URL appear immediately when output is piped.** Python
+  block-buffers a piped stdout, so `auth login` run as a background task could
+  sit on the sign-in code until the process exited — a user watching a task
+  log saw nothing at all. All output is now line-buffered.
+
+### Added
+
+- **`fn2 auth login --no-wait`**: start (or resume) the sign-in, print the code
+  and URL, open the browser, and return immediately instead of blocking for up
+  to 15 minutes; a later `fn2 auth login` resumes the same code and finishes.
+  This is the flow `SKILL.md` now teaches assistants: get the code in the
+  foreground, put it in chat at once, wait for approval in the background.
+- The README now leads with a **Get started** section (install → connect →
+  first question) ahead of the feature tour; install variants moved to
+  **Install details**. A troubleshooting entry covers "the browser never
+  opened".
+
 ## [0.5.0] - 2026-08-10
 
 ### Added
@@ -133,6 +160,7 @@ user-visible surface.
 - First release: start, watch, and schedule FN2 AI research agents from Claude
   Code, Codex, or Pi.
 
+[0.6.0]: https://github.com/fn2ai/fn2-skill/compare/v0.5.0...v0.6.0
 [0.5.0]: https://github.com/fn2ai/fn2-skill/compare/v0.4.1...v0.5.0
 [0.4.1]: https://github.com/fn2ai/fn2-skill/compare/v0.4.0...v0.4.1
 [0.4.0]: https://github.com/fn2ai/fn2-skill/compare/v0.3.0...v0.4.0

@@ -92,6 +92,26 @@ def _open_browser(uri: str) -> bool:
         return False
 
 
+def _display_available(environ: Optional[Dict[str, str]] = None,
+                       platform: Optional[str] = None) -> bool:
+    """Whether this machine can plausibly put a browser window in front of the user.
+
+    Deliberately not an isatty() check: the normal caller is an assistant
+    driving the CLI through a pipe while the user sits at the same desktop, and
+    that user still wants the sign-in page opened for them. What matters is a
+    display, not a terminal: always present on macOS and Windows, present on
+    Linux when X11/Wayland says so, and never on the far side of a plain SSH
+    session (opening a browser there would land on the wrong machine's screen).
+    """
+    env = os.environ if environ is None else environ
+    plat = platform if platform is not None else sys.platform
+    if env.get("SSH_CONNECTION") or env.get("SSH_TTY"):
+        return bool(env.get("DISPLAY") or env.get("WAYLAND_DISPLAY"))
+    if plat == "darwin" or plat.startswith("win") or plat == "cygwin":
+        return True
+    return bool(env.get("DISPLAY") or env.get("WAYLAND_DISPLAY"))
+
+
 # ---------------------------------------------------------------------------
 # auth — device sign-in & credential lifecycle
 # ---------------------------------------------------------------------------
@@ -113,15 +133,21 @@ def _start_device_flow(client: Client, settings: config.Settings) -> Dict[str, A
     return pending
 
 
-def _run_device_flow(client: Client, flow: Dict[str, Any],
-                     args: argparse.Namespace, say) -> Dict[str, Any]:
+def _announce_device_flow(flow: Dict[str, Any], args: argparse.Namespace, say) -> None:
+    """Print the URL + code first (they must never be stranded behind a poll),
+    then try the browser."""
     uri = flow.get("verification_uri") or config.DEFAULT_ONBOARD_URL
     code = str(flow.get("user_code") or "")
     say(f"\nOpen {uri}")
     say(f"Enter code {code}")
-    if not getattr(args, "no_browser", False) and sys.stdout.isatty():
+    if not getattr(args, "no_browser", False) and _display_available():
         if _open_browser(uri):
             say("(opened in your browser)")
+
+
+def _run_device_flow(client: Client, flow: Dict[str, Any],
+                     args: argparse.Namespace, say) -> Dict[str, Any]:
+    _announce_device_flow(flow, args, say)
     say("\nwaiting for approval. Ctrl-C is safe; `fn2 auth login` resumes.")
     try:
         return deviceauth.poll_until_complete(
@@ -151,6 +177,20 @@ def cmd_auth_login(args: argparse.Namespace) -> int:
     if flow is None:
         storage.clear_pending()
         flow = _start_device_flow(client, settings)
+
+    if getattr(args, "no_wait", False):
+        # Two-phase flow for assistants: surface the code now, poll later.
+        _announce_device_flow(flow, args, say)
+        say("\nnot waiting (--no-wait). Approve in the browser, then run "
+            "`fn2 auth login` again; it resumes this code and finishes.")
+        if json_mode:
+            _emit_json_safe({
+                "status": "pending",
+                "user_code": flow.get("user_code"),
+                "verification_uri": flow.get("verification_uri"),
+                "expires_at": flow.get("expires_at"),
+            })
+        return 0
 
     outcome = _run_device_flow(client, flow, args, say)
     if outcome.get("status") == "expired" and resumed:
@@ -914,6 +954,9 @@ def build_parser() -> argparse.ArgumentParser:
             parent=auth_sub)
     p.add_argument("--no-browser", action="store_true",
                    help="don't try to open the browser automatically")
+    p.add_argument("--no-wait", action="store_true",
+                   help="print the code, open the browser, and exit without "
+                        "waiting; a later `auth login` resumes and finishes")
     add_json(p)
 
     p = add("status", cmd_auth_status, "where the credential lives + live verification",
@@ -1014,6 +1057,15 @@ def build_parser() -> argparse.ArgumentParser:
 
 
 def main(argv: Optional[List[str]] = None) -> int:
+    # The CLI is routinely driven by an assistant through a pipe, where Python
+    # block-buffers stdout: a sign-in code would sit invisible in the buffer
+    # exactly when the user needs it. Force line buffering; streams that cannot
+    # reconfigure (StringIO under test, exotic wrappers) keep their behaviour.
+    for stream in (sys.stdout, sys.stderr):
+        try:
+            stream.reconfigure(line_buffering=True)
+        except Exception:
+            pass
     parser = build_parser()
     args = parser.parse_args(argv)
     # --json is machine-readable by contract, so it is never colourised.

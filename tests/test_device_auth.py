@@ -458,6 +458,108 @@ class AuthLoginCliTests(_EnvSandbox):
 
 
 # ---------------------------------------------------------------------------
+# CLI: auth login --no-wait (two-phase flow for assistants)
+# ---------------------------------------------------------------------------
+class AuthLoginNoWaitTests(_EnvSandbox):
+    def test_no_wait_prints_code_and_exits_without_polling(self):
+        with mock.patch.object(deviceauth, "start", return_value=dict(START_RESPONSE)), \
+             mock.patch.object(deviceauth, "poll_until_complete") as poll:
+            rc, out, err = _run_cli(["auth", "login", "--no-wait", "--no-browser"])
+        self.assertEqual(rc, 0)
+        poll.assert_not_called()
+        blob = out + err
+        self.assertIn("https://fn2.ai/start", blob)
+        self.assertIn("BCDF-GHJK", blob)
+        self.assertIn("--no-wait", blob)  # says how to finish
+        pending = storage.load_pending()
+        self.assertEqual(pending["device_code"], DEVICE_CODE)
+
+    def test_no_wait_then_plain_login_resumes_and_finishes(self):
+        with mock.patch.object(deviceauth, "start", return_value=dict(START_RESPONSE)) as start, \
+             mock.patch.object(deviceauth, "poll_until_complete",
+                               return_value=dict(APPROVED)):
+            rc1, _, _ = _run_cli(["auth", "login", "--no-wait", "--no-browser"])
+            rc2, out, err = _run_cli(["auth", "login", "--no-browser"])
+        self.assertEqual((rc1, rc2), (0, 0))
+        self.assertEqual(start.call_count, 1)  # the resume reuses the same code
+        self.assertIn("resuming", out + err)
+        record = json.loads(storage.credentials_path().read_text())
+        self.assertEqual(record["api_key"], TOKEN)
+        self.assertIsNone(storage.load_pending())
+
+    def test_no_wait_resumes_an_existing_pending_code(self):
+        storage.save_pending({
+            "device_code": DEVICE_CODE, "user_code": "BCDF-GHJK",
+            "verification_uri": "https://fn2.ai/start", "interval": 5,
+            "expires_at": time.time() + 600, "base_url": "https://fn2.ai",
+        })
+        with mock.patch.object(deviceauth, "start") as start:
+            rc, out, err = _run_cli(["auth", "login", "--no-wait", "--no-browser"])
+        self.assertEqual(rc, 0)
+        start.assert_not_called()
+        self.assertIn("BCDF-GHJK", out + err)
+
+    def test_no_wait_json_has_no_device_code_or_token(self):
+        with mock.patch.object(deviceauth, "start", return_value=dict(START_RESPONSE)):
+            rc, out, err = _run_cli(["auth", "login", "--no-wait", "--no-browser",
+                                     "--json"])
+        self.assertEqual(rc, 0)
+        payload = json.loads(out)
+        self.assertEqual(payload["status"], "pending")
+        self.assertEqual(payload["user_code"], "BCDF-GHJK")
+        self.assertEqual(payload["verification_uri"], "https://fn2.ai/start")
+        self.assertNotIn(DEVICE_CODE, out)  # the poll secret stays on disk only
+
+
+# ---------------------------------------------------------------------------
+# CLI: browser auto-open (display-gated, never TTY-gated)
+# ---------------------------------------------------------------------------
+class BrowserOpenTests(_EnvSandbox):
+    def _login(self, argv):
+        with mock.patch.object(deviceauth, "start", return_value=dict(START_RESPONSE)), \
+             mock.patch.object(deviceauth, "poll_until_complete",
+                               return_value=dict(APPROVED)), \
+             mock.patch.object(cli, "_open_browser", return_value=True) as opened:
+            rc, out, err = _run_cli(argv)
+        return rc, out + err, opened
+
+    def test_opens_browser_through_a_pipe_when_display_present(self):
+        # _run_cli captures stdout into a StringIO (isatty False): the browser
+        # must open anyway, because an assistant-driven pipe is the normal case.
+        with mock.patch.object(cli, "_display_available", return_value=True):
+            rc, blob, opened = self._login(["auth", "login"])
+        self.assertEqual(rc, 0)
+        opened.assert_called_once_with("https://fn2.ai/start")
+        self.assertIn("opened in your browser", blob)
+
+    def test_headless_prints_url_and_never_calls_browser(self):
+        with mock.patch.object(cli, "_display_available", return_value=False):
+            rc, blob, opened = self._login(["auth", "login"])
+        self.assertEqual(rc, 0)
+        opened.assert_not_called()
+        self.assertIn("https://fn2.ai/start", blob)
+
+    def test_no_browser_flag_wins_over_display(self):
+        with mock.patch.object(cli, "_display_available", return_value=True):
+            rc, blob, opened = self._login(["auth", "login", "--no-browser"])
+        self.assertEqual(rc, 0)
+        opened.assert_not_called()
+
+    def test_display_detection_matrix(self):
+        avail = cli._display_available
+        self.assertTrue(avail({}, "darwin"))
+        self.assertTrue(avail({}, "win32"))
+        self.assertFalse(avail({}, "linux"))
+        self.assertTrue(avail({"DISPLAY": ":0"}, "linux"))
+        self.assertTrue(avail({"WAYLAND_DISPLAY": "wayland-0"}, "linux"))
+        # over SSH only a forwarded display counts, on every platform
+        self.assertFalse(avail({"SSH_CONNECTION": "1.2.3.4"}, "darwin"))
+        self.assertFalse(avail({"SSH_TTY": "/dev/ttys001"}, "linux"))
+        self.assertTrue(avail({"SSH_CONNECTION": "1.2.3.4", "DISPLAY": ":10"},
+                              "linux"))
+
+
+# ---------------------------------------------------------------------------
 # CLI: status / logout / permissions / doctor / redaction
 # ---------------------------------------------------------------------------
 class AuthLifecycleCliTests(_EnvSandbox):

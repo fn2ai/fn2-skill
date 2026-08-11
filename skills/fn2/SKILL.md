@@ -32,20 +32,51 @@ install`, no build step.
 
 ## First run: connect an account (no secret copying)
 
-Resolve the helper as described in **Locating the helper**, then run:
+Connecting is a browser device flow: the CLI prints a short code, the user
+enters it at `https://fn2.ai/start` and clicks **Approve**. Drive it in two
+steps so the user is never left watching a silent terminal. Resolve the helper
+first as described in **Locating the helper**.
+
+**Step 1 — get the code (instant, foreground).**
 
 ```bash
-python3 "$FN2" auth login
-# → Open https://fn2.ai/start
-# → Enter code XXXX-XXXX
+python3 "$FN2" auth login --no-wait
+# Open https://fn2.ai/start
+# Enter code XXXX-XXXX
+# (opened in your browser)
 ```
 
-That's the whole flow: the browser opens `https://fn2.ai/start`, the user signs
-in (or signs up) and types the short code shown in the terminal, clicks
-**Approve**, and the CLI receives a scoped, revocable device credential. The
-credential is stored in the macOS Keychain when available, otherwise in
+This starts (or resumes) a sign-in, prints the URL and code, opens the user's
+browser itself whenever the machine has a display, and exits immediately.
+
+**Step 2 — relay the code, then wait in the background.** Tell the user the
+code and the URL in chat right away, e.g.:
+
+> Your sign-in code is **XXXX-XXXX**. I opened https://fn2.ai/start — sign in
+> (or create an account) and approve the code there. If no tab appeared, click
+> the link.
+
+Then run the finishing wait as a background task so the conversation is not
+blocked:
+
+```bash
+python3 "$FN2" auth login --no-browser    # resumes the same code, waits for approval
+```
+
+It completes the moment the user approves (codes live 15 minutes) and stores a
+scoped, revocable device credential: macOS Keychain when available, otherwise
 `~/.config/fn2/credentials.json` with `0600` permissions. No key is ever
-pasted, printed, or sent to chat.
+pasted, printed, or sent to chat. Confirm with `python3 "$FN2" auth status`.
+
+Two rules that matter more than the mechanics:
+
+- **Never run bare `auth login` as a blocking foreground command** in an
+  assistant turn; it waits up to 15 minutes and hides the code exactly when
+  the user needs it.
+- **Never make the user dig the code out of a task log.** The code and URL go
+  into chat the moment Step 1 prints them.
+
+Other notes:
 
 - Interrupted? `fn2 auth login` resumes the same code until it expires
   (15 minutes), then starts a fresh one.
@@ -110,6 +141,8 @@ python3 "$FN2" resume <agent_id>
 python3 "$FN2" schedule <agent_id> "hourly"
 python3 "$FN2" delete <agent_id>
 
+python3 "$FN2" auth login --no-wait       # start sign-in: print code + URL, open browser, return
+python3 "$FN2" auth login --no-browser    # resume + wait for approval (run in background)
 python3 "$FN2" auth status                # credential health + storage backend
 python3 "$FN2" permissions                # what the credential can / cannot do
 python3 "$FN2" doctor                     # local diagnostics

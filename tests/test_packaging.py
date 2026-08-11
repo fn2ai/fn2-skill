@@ -14,6 +14,9 @@ import unittest
 
 ROOT = pathlib.Path(__file__).resolve().parent.parent
 SKILL = ROOT / "skills" / "fn2"
+
+sys.path.insert(0, str(SKILL / "scripts"))
+from fn2cli import __version__  # noqa: E402  (after sys.path setup)
 REPOSITORY = "https://github.com/fn2ai/fn2-skill"
 
 
@@ -99,7 +102,7 @@ class PackagingTests(unittest.TestCase):
                 version = subprocess.run(
                     [sys.executable, str(link / "scripts" / "fn2"), "--version"],
                     check=True, text=True, capture_output=True).stdout.strip()
-                self.assertEqual(version, "fn2-skill 0.5.0")
+                self.assertEqual(version, f"fn2-skill {__version__}")
 
             subprocess.run(
                 ["make", "uninstall"], cwd=ROOT, env=env,

@@ -13,9 +13,61 @@
 
 **Ask [FN2 AI](https://fn2.ai) anything about public markets, then put the good questions on a schedule. From your terminal.**
 
-[Install](#install) · [Connect](#connect-your-account) · [Run it yourself](#running-it-yourself) · [In use](#in-use) · [Commands](#commands) · [Scheduling](#scheduling-in-everyday-words) · [Security](#security-and-configuration)
+[Get started](#get-started) · [Run it yourself](#running-it-yourself) · [In use](#in-use) · [Commands](#commands) · [Scheduling](#scheduling-in-everyday-words) · [Security](#security-and-configuration)
 
 </div>
+
+---
+
+## Get started
+
+**1. Install the skill.** One command; nothing else to set up (standard-library
+Python, zero dependencies, no build step).
+
+<table>
+<tr><th align="left">Claude Code</th><th align="left">Codex</th></tr>
+<tr valign="top">
+<td>
+
+```bash
+claude plugin marketplace add fn2ai/fn2-skill
+claude plugin install fn2@fn2
+```
+
+</td>
+<td>
+
+```bash
+codex plugin marketplace add fn2ai/fn2-skill
+codex plugin add fn2@fn2
+```
+
+</td>
+</tr>
+</table>
+
+**2. Connect your account.** Ask your assistant, in as many words:
+
+> *"connect my FN2 AI account"*
+
+Your assistant shows you a short sign-in code and opens
+[fn2.ai/start](https://fn2.ai/start) in your browser (if no tab appears, it
+gives you the link to click). Sign in or create an account, enter the code,
+click **Approve**, done: the CLI receives a scoped, revocable device
+credential and stores it in the macOS Keychain (or an owner-only file on
+Linux). You never see or copy a secret.
+
+<p align="center">
+  <img src="docs/media/auth-login.png" alt="fn2 auth login prints a short code, opens fn2.ai/start, and stores a scoped device credential in the macOS Keychain" width="860">
+</p>
+
+**3. Ask something.**
+
+> *"what did NVIDIA say about data-center demand on the last earnings call?"*
+
+That is the whole setup. Installing for **Pi**, working from a checkout, or
+wanting the `fn2` command in your own terminal: see
+[Install details](#install-details).
 
 ---
 
@@ -43,32 +95,11 @@ step, standard library only.**
 
 <div align="center"><sub>Ask in natural language. The skill does the API work.</sub></div>
 
-## Install
+## Install details
 
-<table>
-<tr><th align="left">Claude Code</th><th align="left">Codex</th></tr>
-<tr valign="top">
-<td>
-
-```bash
-claude plugin marketplace add fn2ai/fn2-skill
-claude plugin install fn2@fn2
-```
-
-</td>
-<td>
-
-```bash
-codex plugin marketplace add fn2ai/fn2-skill
-codex plugin add fn2@fn2
-```
-
-</td>
-</tr>
-</table>
-
-**Pi**, or local development in any harness: clone the repository and link the
-canonical skill directory.
+The one-command install is under [Get started](#get-started). **Pi**, or local
+development in any harness: clone the repository and link the canonical skill
+directory.
 
 ```bash
 git clone https://github.com/fn2ai/fn2-skill ~/.fn2-skill
@@ -91,22 +122,9 @@ That writes a small launcher into the first writable `bin` directory on your
 `PATH` and tells you if there isn't one. The launcher re-resolves the skill on
 every run, so plugin updates do not strand it. `fn2 unlink` removes it.
 
-## Connect your account
-
-Ask your assistant, in as many words:
-
-> *"connect my FN2 AI account"*
-
-Or, if you linked the command, `fn2 auth login`. Either way it is the same
-browser device flow, with no secret copying: the terminal prints a short code
-and opens `https://fn2.ai/start`. Sign in (or sign up), type the code, click
-**Approve**, done. The CLI receives a scoped, revocable device credential and
-stores it in the macOS Keychain (or an owner-only file on Linux). You never see
-or copy a secret.
-
-<p align="center">
-  <img src="docs/media/auth-login.png" alt="fn2 auth login prints a short code, opens fn2.ai/start, and stores a scoped device credential in the macOS Keychain" width="860">
-</p>
+Once linked, `fn2 auth login` is the same browser device flow as asking your
+assistant to connect: code in the terminal, approval at `fn2.ai/start`,
+credential in the Keychain.
 
 ## Running it yourself
 
@@ -212,7 +230,7 @@ Any command that takes an agent takes an **id, an id prefix, or a name**.
 | Command | Does |
 |---|---|
 | `link` / `unlink` | put an `fn2` launcher on your PATH, or take it off |
-| `auth login [--no-browser]` | connect via the browser device flow (code at fn2.ai/start) |
+| `auth login [--no-browser] [--no-wait]` | connect via the browser device flow (code at fn2.ai/start); `--no-wait` prints the code and returns, a later `auth login` finishes |
 | `auth status` | storage backend, masked credential, scopes, expiry, live check |
 | `auth logout [--revoke]` | disconnect (optionally revoke the credential on FN2 AI first) |
 | `permissions` | what the credential can and cannot do |

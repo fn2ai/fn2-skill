@@ -47,6 +47,20 @@ Keychain → `~/.config/fn2/credentials.json`. There is no `.env` support.
 - For a manual API key, create a fresh one in the web app and
   `fn2 login --token …` again.
 
+## The browser never opened during `auth login`
+
+The CLI opens the browser whenever the machine can show one: always on macOS
+and Windows, on Linux when `DISPLAY` / `WAYLAND_DISPLAY` is set, never over a
+plain SSH session (it would open on the wrong machine). It does **not** require
+stdout to be a terminal, so it works when an assistant drives it through a
+pipe. If no tab appears anyway, open the printed URL by hand — on any device;
+the code, not the browser session, is what links the terminal. `--no-browser`
+suppresses the attempt on purpose.
+
+Assistants: use the two-step flow in SKILL.md (`auth login --no-wait`, relay
+the code, then resume with `auth login --no-browser` in the background) so the
+code reaches the user immediately.
+
 ## "the sign-in code expired before approval"
 
 Device-login codes live 15 minutes. Just run `fn2 auth login` again; a fresh
