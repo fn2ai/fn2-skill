@@ -43,16 +43,6 @@ codex plugin add fn2@fn2
 </tr>
 </table>
 
-Then ask your assistant:
-
-> *"connect my FN2 AI account"*
-
-A short code, a browser tab, click **Approve** — connected. Ask it anything:
-
-> *"what did NVIDIA say about data-center demand on the last earnings call?"*
-
-<sub>**Pi**, checkouts, and putting `fn2` on your `PATH`: [Install details](#install-details).</sub>
-
 ---
 
 FN2 AI runs autonomous research agents on public markets: earnings-call
