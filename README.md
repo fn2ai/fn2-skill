@@ -21,8 +21,7 @@
 
 ## Get started
 
-**1. Install the skill.** One command; nothing else to set up (standard-library
-Python, zero dependencies, no build step).
+**1. Install.**
 
 <table>
 <tr><th align="left">Claude Code</th><th align="left">Codex</th></tr>
@@ -46,16 +45,12 @@ codex plugin add fn2@fn2
 </tr>
 </table>
 
-**2. Connect your account.** Ask your assistant, in as many words:
+**2. Connect.** Ask your assistant:
 
 > *"connect my FN2 AI account"*
 
-Your assistant shows you a short sign-in code and opens
-[fn2.ai/start](https://fn2.ai/start) in your browser (if no tab appears, it
-gives you the link to click). Sign in or create an account, enter the code,
-click **Approve**, done: the CLI receives a scoped, revocable device
-credential and stores it in the macOS Keychain (or an owner-only file on
-Linux). You never see or copy a secret.
+Your browser opens [fn2.ai/start](https://fn2.ai/start) with a short code to
+enter. Sign in, click **Approve**, done. You never see or copy a secret.
 
 <p align="center">
   <img src="docs/media/auth-login.png" alt="fn2 auth login prints a short code, opens fn2.ai/start, and stores a scoped device credential in the macOS Keychain" width="860">
@@ -65,9 +60,7 @@ Linux). You never see or copy a secret.
 
 > *"what did NVIDIA say about data-center demand on the last earnings call?"*
 
-That is the whole setup. Installing for **Pi**, working from a checkout, or
-wanting the `fn2` command in your own terminal: see
-[Install details](#install-details).
+<sub>**Pi**, checkouts, and putting `fn2` on your `PATH`: [Install details](#install-details).</sub>
 
 ---
 
