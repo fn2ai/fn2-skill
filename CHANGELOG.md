@@ -5,6 +5,14 @@ Notable changes to the FN2 AI skill. The format follows
 [semantic versioning](https://semver.org/spec/v2.0.0.html) on the CLI's
 user-visible surface.
 
+## [0.6.1] - 2026-11-05
+
+### Fixed
+
+- Pi installation now uses `~/.pi/agent/skills` and respects
+  `PI_CODING_AGENT_DIR`. The CLI launcher and skill helper resolve that path;
+  installations previously placed under Hermes remain discoverable.
+
 ## [0.6.0] - 2026-08-11
 
 ### Fixed

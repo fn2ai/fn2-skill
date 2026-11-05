@@ -85,7 +85,7 @@ class PackagingTests(unittest.TestCase):
                 "HOME": str(home),
                 "CLAUDE_CONFIG_DIR": str(home / ".claude"),
                 "CODEX_HOME": str(home / ".codex"),
-                "HERMES_HOME": str(home / ".hermes"),
+                "PI_CODING_AGENT_DIR": str(home / ".pi" / "agent"),
             })
             subprocess.run(
                 ["make", "install"], cwd=ROOT, env=env,
@@ -94,7 +94,7 @@ class PackagingTests(unittest.TestCase):
             links = (
                 home / ".claude" / "skills" / "fn2",
                 home / ".codex" / "skills" / "fn2",
-                home / ".hermes" / "skills" / "fn2",
+                home / ".pi" / "agent" / "skills" / "fn2",
             )
             for link in links:
                 self.assertTrue(link.is_symlink(), link)
@@ -131,7 +131,8 @@ class PackagingTests(unittest.TestCase):
             "plugin cache": ".claude/plugins/cache/fn2/fn2/9.9.9/skills/fn2",
             "make install": ".claude/skills/fn2",
             "codex": ".codex/skills/fn2",
-            "pi": ".hermes/skills/fn2",
+            "pi": ".pi/agent/skills/fn2",
+            "legacy Hermes location": ".hermes/skills/fn2",
         }
         for source, (snippet, marker) in snippets.items():
             for name, relative in layouts.items():
@@ -147,7 +148,7 @@ class PackagingTests(unittest.TestCase):
                             # A relocated Claude home must still resolve.
                             "CLAUDE_CONFIG_DIR": str(home / ".claude"),
                             "CODEX_HOME": str(home / ".codex"),
-                            "HERMES_HOME": str(home / ".hermes"),
+                            "PI_CODING_AGENT_DIR": str(home / ".pi" / "agent"),
                         }
                         # An empty cwd: the `$(pwd)` fallback must not rescue us.
                         result = subprocess.run(
@@ -155,6 +156,41 @@ class PackagingTests(unittest.TestCase):
                             env=env, cwd=temp, text=True, capture_output=True)
                         self.assertEqual(result.returncode, 0, result.stderr)
                         self.assertIn(marker, result.stdout)
+
+    def test_pi_custom_agent_directory_installs_and_resolves_without_touching_hermes(self):
+        from fn2cli import cli
+
+        with tempfile.TemporaryDirectory() as temp:
+            home = pathlib.Path(temp) / "home"
+            agent_dir = home / "custom-pi"
+            hermes = home / ".hermes" / "skills" / "fn2"
+            hermes.mkdir(parents=True)
+            marker = hermes / "keep-me"
+            marker.write_text("independent Hermes installation", encoding="utf-8")
+            env = {
+                "HOME": str(home),
+                "PATH": os.environ.get("PATH", ""),
+                "PI_CODING_AGENT_DIR": str(agent_dir),
+                "CLAUDE_CONFIG_DIR": str(home / ".claude"),
+                "CODEX_HOME": str(home / ".codex"),
+            }
+            subprocess.run(["make", "install-pi"], cwd=ROOT, env=env,
+                           check=True, text=True, capture_output=True)
+            installed = agent_dir / "skills" / "fn2"
+            self.assertEqual(installed.resolve(), SKILL.resolve())
+            for snippet, expected in (
+                (_bash_block(SKILL / "SKILL.md", "## Locating the helper"), "usage: fn2"),
+                (cli._LAUNCHER + "\n", f"fn2-skill {__version__}"),
+            ):
+                result = subprocess.run(
+                    ["bash", "-c", snippet, "fn2", "--version"],
+                    cwd=temp, env=env, text=True, capture_output=True)
+                self.assertEqual(result.returncode, 0, result.stderr)
+                self.assertIn(expected, result.stdout)
+            subprocess.run(["make", "uninstall"], cwd=ROOT, env=env,
+                           check=True, text=True, capture_output=True)
+            self.assertFalse(installed.is_symlink())
+            self.assertEqual(marker.read_text(), "independent Hermes installation")
 
     def test_readme_does_not_promise_an_fn2_binary_before_defining_one(self):
         """`claude plugin install` adds no PATH entry, so the README must not

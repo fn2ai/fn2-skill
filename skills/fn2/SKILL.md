@@ -104,6 +104,7 @@ for d in "$FN2_SKILL_DIR" \
                   2>/dev/null) \
          "$HOME/.claude/skills/fn2" \
          "${CODEX_HOME:-$HOME/.codex}/skills/fn2" "$HOME/.agents/skills/fn2" \
+         "${PI_CODING_AGENT_DIR:-$HOME/.pi/agent}/skills/fn2" \
          "${HERMES_HOME:-$HOME/.hermes}/skills/fn2" "$(pwd)"; do
   [ -f "$d/scripts/fn2" ] && FN2="$d/scripts/fn2" && break
 done

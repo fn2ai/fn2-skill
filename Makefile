@@ -6,7 +6,7 @@ PYTHON ?= python3
 
 CLAUDE_CONFIG_DIR ?= $(HOME)/.claude
 CODEX_HOME ?= $(HOME)/.codex
-HERMES_HOME ?= $(HOME)/.hermes
+PI_CODING_AGENT_DIR ?= $(HOME)/.pi/agent
 
 CLAUDE_SKILLS := $(CLAUDE_CONFIG_DIR)/skills
 CODEX_SKILLS := $(CODEX_HOME)/skills
@@ -61,13 +61,13 @@ install-codex:
 	@ln -sfn "$(SKILL_DIR)" "$(CODEX_SKILLS)/fn2" && echo "linked Codex  → $(CODEX_SKILLS)/fn2"
 
 install-pi:
-	@mkdir -p "$(HERMES_HOME)/skills"
-	@test ! -e "$(HERMES_HOME)/skills/fn2" || test -L "$(HERMES_HOME)/skills/fn2" || \
-		{ echo "error: $(HERMES_HOME)/skills/fn2 exists and is not a symlink" >&2; exit 1; }
-	@ln -sfn "$(SKILL_DIR)" "$(HERMES_HOME)/skills/fn2" && echo "linked Pi     → $(HERMES_HOME)/skills/fn2"
+	@mkdir -p "$(PI_CODING_AGENT_DIR)/skills"
+	@test ! -e "$(PI_CODING_AGENT_DIR)/skills/fn2" || test -L "$(PI_CODING_AGENT_DIR)/skills/fn2" || \
+		{ echo "error: $(PI_CODING_AGENT_DIR)/skills/fn2 exists and is not a symlink" >&2; exit 1; }
+	@ln -sfn "$(SKILL_DIR)" "$(PI_CODING_AGENT_DIR)/skills/fn2" && echo "linked Pi     → $(PI_CODING_AGENT_DIR)/skills/fn2"
 
 uninstall:
-	@for path in "$(CLAUDE_SKILLS)/fn2" "$(CODEX_SKILLS)/fn2" "$(HERMES_HOME)/skills/fn2"; do \
+	@for path in "$(CLAUDE_SKILLS)/fn2" "$(CODEX_SKILLS)/fn2" "$(PI_CODING_AGENT_DIR)/skills/fn2"; do \
 		if test -L "$$path"; then rm "$$path"; fi; \
 	done
 	@echo "removed skill symlinks (stored credentials untouched)."

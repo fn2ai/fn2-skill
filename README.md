@@ -77,9 +77,11 @@ directory.
 
 ```bash
 git clone https://github.com/fn2ai/fn2-skill ~/.fn2-skill
-ln -s ~/.fn2-skill/skills/fn2 "${HERMES_HOME:-$HOME/.hermes}/skills/fn2"
+make -C ~/.fn2-skill install-pi
 ```
 
+`make install-pi` uses `~/.pi/agent/skills/fn2`, or the `skills/fn2` directory
+under `PI_CODING_AGENT_DIR` when set. Reload Pi after installation with `/reload`.
 `make install` from a checkout links the canonical skill into Claude, Codex,
 and Pi at once.
 

@@ -514,6 +514,7 @@ helper=$(ls -td "$claude_home"/plugins/cache/*/*/*/skills/fn2 \\
                 "$claude_home"/skills/fn2 \\
                 "$codex_home"/skills/fn2 \\
                 "$HOME"/.agents/skills/fn2 \\
+                "${PI_CODING_AGENT_DIR:-$HOME/.pi/agent}"/skills/fn2 \\
                 "${HERMES_HOME:-$HOME/.hermes}"/skills/fn2 2>/dev/null | head -1)
 if [ -z "$helper" ]; then
     echo "fn2: skill not found. Reinstall the plugin, or run \\`fn2 link\\` again." >&2
