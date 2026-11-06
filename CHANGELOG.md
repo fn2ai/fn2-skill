@@ -5,13 +5,23 @@ Notable changes to the FN2 AI skill. The format follows
 [semantic versioning](https://semver.org/spec/v2.0.0.html) on the CLI's
 user-visible surface.
 
-## [Unreleased]
+## [0.7.0] - 2026-11-06
+
+### Added
+
+- Ship a research cookbook inside the canonical skill: earnings comparison,
+  GAAP reconciliation, and a bounded watchlist pilot. The standard-library
+  runner previews prompts without credentials or network, delegates opt-in
+  execution to the existing CLI, and requires an end date for recurrence.
+- Test all three recipes through the actual CLI/HTTP contract with offline
+  fixtures, including result retrieval, schedule fields, pause, and rejection
+  of invalid or unbounded inputs. No live research output is fabricated.
 
 ### Documentation
 
 - Document the Skills CLI install route, project-local Codex path, telemetry
   opt-out, and the account and runtime requirements for first use. Verified
-  with Skills CLI 1.7.6; no runtime or plugin-version change.
+  with Skills CLI 1.7.6.
 
 ## [0.6.1] - 2026-11-05
 

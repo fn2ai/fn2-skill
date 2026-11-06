@@ -203,6 +203,7 @@ A manual API key still works as a fallback: create one in the FN2 AI web app
 
 ## References
 
+- [examples/README.md](examples/README.md): previewable, source-disciplined earnings, reconciliation, and bounded watchlist workflows; execution is opt-in.
 - [references/api.md](references/api.md): the endpoint contract this skill maps to.
 - [references/scheduling.md](references/scheduling.md): cadence phrases and calendar caveats.
 - [references/troubleshooting.md](references/troubleshooting.md): auth, storage, quota, and network errors.

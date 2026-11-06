@@ -13,7 +13,7 @@
 
 **Ask [FN2 AI](https://fn2.ai) anything about public markets, then put the good questions on a schedule. From your terminal.**
 
-[Get started](#get-started) · [Run it yourself](#running-it-yourself) · [In use](#in-use) · [Commands](#commands) · [Scheduling](#scheduling-in-everyday-words) · [Security](#security-and-configuration)
+[Get started](#get-started) · [Research cookbook](#research-cookbook) · [Run it yourself](#running-it-yourself) · [In use](#in-use) · [Commands](#commands) · [Scheduling](#scheduling-in-everyday-words) · [Security](#security-and-configuration)
 
 </div>
 
@@ -162,6 +162,22 @@ Output is colourised when it is going to a terminal and plain everywhere else.
 `--color never` and `NO_COLOR` both turn it off; `--json` is never colourised.
 On a console that cannot encode `✓`, the glyphs fall back to ASCII instead of
 raising `UnicodeEncodeError`.
+
+## Research cookbook
+
+[Three reproducible workflows](skills/fn2/examples/README.md) ship with the skill:
+
+| Workflow | What it helps you check |
+|---|---|
+| Earnings comparison | Two fiscal periods, source-linked changes, guidance and cash-flow comparability |
+| GAAP reconciliation | Issuer adjustments, tax/share basis, arithmetic residuals and missing disclosures |
+| Scheduled watchlist | Dated evidence before market open, with an explicit pilot end date |
+
+The cookbook previews each complete prompt locally without credentials or
+network access. Add `--execute` after review to create an agent through the
+existing CLI. It includes source-review rules, result retrieval, schedule
+inspection, and pause commands. Offline contract tests cover all three
+workflows; no sample financial results are presented as live research.
 
 ## In use
 

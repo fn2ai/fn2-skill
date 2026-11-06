@@ -27,6 +27,7 @@ test:
 
 lint:
 	$(PYTHON) -m py_compile skills/fn2/scripts/fn2 skills/fn2/scripts/fn2cli/*.py
+	$(PYTHON) -m py_compile skills/fn2/examples/cookbook.py
 	@echo "ok — all modules compile"
 
 validate:
