@@ -21,6 +21,40 @@
 
 ## Get started
 
+### Skills CLI
+
+From your project directory, install the `fn2` skill with the
+[open Skills CLI](https://skills.sh/docs/cli):
+
+```bash
+npx skills add fn2ai/fn2-skill --skill fn2
+```
+
+Choose your assistant when prompted. For a project-local Codex installation
+with anonymous install telemetry disabled:
+
+```bash
+DISABLE_TELEMETRY=1 npx skills add fn2ai/fn2-skill --skill fn2 --agent codex
+```
+
+This copies the skill into `.agents/skills/fn2`; it does not add a command to
+your shell's `PATH`. Node.js/npm runs the installer; the installed FN2 helper
+requires **Python 3.9+** and has no Python package dependencies. You can inspect
+the package before installing with `--list`, or read
+[`skills/fn2/SKILL.md`](skills/fn2/SKILL.md) and the bundled scripts here.
+
+Then ask your assistant to **connect my FN2 account**. Approve the displayed
+device code at [fn2.ai/start](https://fn2.ai/start), then try: *"What did IBM
+say about revenue growth in its latest earnings call?"* An FN2 account and
+available plan quota are required to run research. The skill is MIT-licensed;
+the hosted FN2 service has a [free tier and paid plans](https://fn2.ai/pricing).
+Installation alone does not create an account or start a paid subscription.
+
+### Plugin marketplaces
+
+Use this route if you prefer your assistant's plugin marketplace. Choose one
+installation method for each assistant to avoid duplicate skill entries.
+
 <table>
 <tr><th align="left">Claude Code</th><th align="left">Codex</th></tr>
 <tr valign="top">
@@ -71,7 +105,7 @@ step, standard library only.**
 
 ## Install details
 
-The one-command install is under [Get started](#get-started). **Pi**, or local
+The installer options are under [Get started](#get-started). **Pi**, or local
 development in any harness: clone the repository and link the canonical skill
 directory.
 
