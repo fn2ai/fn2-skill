@@ -448,6 +448,9 @@ def earnings(data: Dict[str, Any]) -> None:
           "company guidance. EPS is per share; revenue is in whole currency "
           "units (US dollars for US companies).")
 
+    # False only when FN2's transcript lookup failed for this response. A
+    # missing call is then "unknown", and must not be reported as "none held".
+    calls_checked = data.get("calls_checked") is not False
     for index, row in enumerate(rows, 1):
         report_date = _day(row.get("report_date"))
         when = (f"reported {report_date}, {_session_phrase(row.get('session'))}"
@@ -460,9 +463,13 @@ def earnings(data: Dict[str, Any]) -> None:
             tid = _text(call.get("transcript_id"))
             held = _day(call.get("call_date")) or f"date {MISSING}"
             print(f"    {'call':<8} held {held} | transcript id {tid}")
-        else:
+        elif calls_checked:
             print(f"    {'call':<8} {MISSING}: FN2 holds no transcript matched "
                   "to this report")
+        else:
+            print(f"    {'call':<8} not checked: FN2 could not look up "
+                  "transcripts for this response, so one may exist. Retry, or "
+                  f"list them: fn2 calls {symbol}")
 
     upcoming = data.get("next")
     print()

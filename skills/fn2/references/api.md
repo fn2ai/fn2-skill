@@ -195,6 +195,7 @@ research commands; see [research.md](research.md) for how to read the output.
 ```json
 {
   "symbol": "NFLX", "as_of": "2026-11-11", "count": 4, "possibly_stale": false,
+  "calls_checked": true,
   "reported": [{
     "fiscal_period": "Q3 '26", "fiscal_year": 2026, "fiscal_quarter": 3,
     "fiscal_date_ending": "2026-09-30", "report_date": "2026-10-20",
@@ -223,6 +224,9 @@ research commands; see [research.md](research.md) for how to read the output.
   `null`.
 - `possibly_stale: true` means the newest result held is old and no report is
   scheduled; `notes[0]` then says so in a sentence meant to be relayed.
+- `calls_checked: false` means the transcript lookup failed for this response:
+  every `call` is `null` because it could not be checked, not because FN2
+  holds no transcript. `notes` says so. Retry, or use `/research/transcripts`.
 - `404 not_found` when FN2 has neither results nor a scheduled report.
 
 ### `GET /research/transcripts?symbol=NFLX&limit=8`

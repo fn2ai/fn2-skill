@@ -61,6 +61,9 @@ next report: 2027-01-19, … (date is a scheduled estimate, not company-confirme
 - The next report date is the vendor's schedule, never a company confirmation.
 - `call  not available` means FN2 holds no transcript within two weeks of that
   report date. It never substitutes the nearest other call.
+- `call  not checked` is different: FN2 could not look up transcripts for that
+  response, so one may exist. Run `earnings` again, or `calls SYMBOL`. Do not
+  tell the user FN2 has no transcript.
 - Any field can be `not available`: revenue while EPS is present, the fiscal
   label, the call, the next report.
 

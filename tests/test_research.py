@@ -493,6 +493,39 @@ class EarningsTests(_Sandbox):
         for note in NOTES:
             self.assertIn(note, out)
 
+    def test_a_failed_transcript_lookup_is_not_reported_as_no_transcript(self):
+        """`calls_checked: false` means every `call` is null because the lookup
+        failed, not because FN2 holds none; saying "none" would be false."""
+        payload = json.loads(json.dumps(EARNINGS))
+        payload["calls_checked"] = False
+        for row in payload["reported"]:
+            row["call"] = None
+        unchecked = ("Company guidance and management commentary are not in "
+                     "this dataset, and call transcripts could not be checked "
+                     "for this response: `call` is null on every row, which "
+                     "does NOT mean FN2 holds none. Retry, or list the calls "
+                     "held for the ticker.")
+        payload["notes"] = [NOTES[0], unchecked, NOTES[1]]
+        self.routes[V1 + "/research/earnings"] = payload
+        out = self.ok("earnings", "NFLX")
+        self.assertEqual(out.count("call     not checked: FN2 could not look "
+                                   "up transcripts for this response, so one "
+                                   "may exist. Retry, or list them: fn2 calls "
+                                   "NFLX"), 2)
+        self.assertNotIn("FN2 holds no transcript", out)
+        self.assertIn(unchecked, out)  # the API's own note is relayed too
+
+        # Checked (or an older server that does not say): a null call is "none".
+        for flag in ({"calls_checked": True}, {}):
+            checked = json.loads(json.dumps(EARNINGS))
+            checked.update(flag)
+            checked["reported"][0]["call"] = None
+            self.routes[V1 + "/research/earnings"] = checked
+            out = self.ok("earnings", "NFLX")
+            self.assertIn("call     not available: FN2 holds no transcript "
+                          "matched to this report", out)
+            self.assertNotIn("not checked", out)
+
     def test_stale_flag_without_a_note_still_warns_first(self):
         self.routes[V1 + "/research/earnings"] = dict(EARNINGS_SPARSE, notes=[])
         out = self.ok("earnings", "BRK.B")
