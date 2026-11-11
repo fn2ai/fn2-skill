@@ -115,7 +115,7 @@ class DetectionTests(unittest.TestCase):
         self.assertEqual(body["client"], "fn2-skill")
         self.assertEqual(body["harness"], "claude")
         self.assertEqual(body["os"], "macos")
-        self.assertEqual(body["scopes"], ["agents", "models"])
+        self.assertEqual(body["scopes"], ["agents", "models", "research"])
         from fn2cli import __version__
         self.assertEqual(body["client_version"], __version__)
 

@@ -1,11 +1,14 @@
-"""Command-line surface for the fn2 agents API.
+"""Command-line surface for the fn2 public API.
 
 Verbs map onto the things the skill promises: connect an account without
-copying secrets, start agents, see their status, and schedule them.
+copying secrets, read FN2's research data directly, start agents, see their
+status, and schedule them.
 
     auth login / auth status / auth logout    device sign-in & credential lifecycle
     permissions / doctor                      what's granted / local diagnostics
     login / logout / whoami / models          manual key fallback & account info
+    earnings / calls / transcript / search    direct research reads: results vs
+    financials / price / fred / recall          consensus, call text, filings, data
     start / agents / status                   create and inspect
     run / runs / result                       trigger and read outcomes
     pause / resume / schedule / delete        manage lifecycle
@@ -14,12 +17,17 @@ copying secrets, start agents, see their status, and schedule them.
 from __future__ import annotations
 
 import argparse
+import contextlib
 import dataclasses
+import datetime as dt
 import getpass
+import io
 import json
 import os
+import re
 import sys
 import time
+import uuid
 from pathlib import Path
 from typing import Any, Dict, List, Optional
 
@@ -29,7 +37,14 @@ from .client import ApiError, AuthError, Client
 _SCOPE_MEANINGS = {
     "agents": "Create and run your FN2 AI research agents",
     "models": "See which models your plan can use",
+    "research": "Read FN2 AI research data directly: earnings vs consensus, "
+                "call transcripts, financials, prices, FRED, your saved notes",
 }
+# What a credential is assumed to carry when nothing recorded says otherwise
+# (a manual API key: its scopes are chosen in the web app and never reach the
+# CLI). `research` is deliberately absent: claiming it would be a guess.
+_ASSUMED_SCOPES = ("agents", "models")
+_RESEARCH_SCOPE = "research"
 _NOT_GRANTED = (
     "read or change billing, email, or password",
     "open a web session or read your chats",
@@ -110,6 +125,89 @@ def _display_available(environ: Optional[Dict[str, str]] = None,
     if plat == "darwin" or plat.startswith("win") or plat == "cygwin":
         return True
     return bool(env.get("DISPLAY") or env.get("WAYLAND_DISPLAY"))
+
+
+# ---------------------------------------------------------------------------
+# scopes: does this credential carry `research`, and what to do when not
+# ---------------------------------------------------------------------------
+def _research_access(settings: config.Settings, record: Dict[str, Any],
+                     usage: Optional[Dict[str, Any]] = None) -> Optional[bool]:
+    """True / False when known, None when it cannot be known locally.
+
+    `/usage` reports a device token's real scopes, so it wins when present.
+    The stored record only describes the stored credential, never one that
+    came from the environment; a bare API key's scopes are not visible here.
+    """
+    device = usage.get("device") if isinstance(usage, dict) else None
+    if isinstance(device, dict) and isinstance(device.get("scopes"), list):
+        return _RESEARCH_SCOPE in device["scopes"]
+    if settings.source in ("keychain", "file") and isinstance(record.get("scopes"), list):
+        return _RESEARCH_SCOPE in record["scopes"]
+    return None
+
+
+_RESEARCH_HINT = ("not granted. Run `fn2 auth login` again to add direct "
+                  "research reads (earnings, transcripts, financials, prices)")
+
+_MISSING_SCOPE_RE = re.compile(r"^Missing scope:\s*([a-z_]+)\s*$")
+
+
+def _missing_scope(exc: ApiError) -> Optional[str]:
+    """The scope a 403 says the credential lacks, or None for any other 403."""
+    if exc.status != 403:
+        return None
+    payload = exc.payload if isinstance(exc.payload, dict) else {}
+    required = payload.get("required_scope")
+    if isinstance(required, str) and required.strip():
+        return required.strip()
+    match = _MISSING_SCOPE_RE.match(str(exc.args[0]) if exc.args else "")
+    return match.group(1) if match else None
+
+
+def _scope_fix(scope: str, args: argparse.Namespace) -> List[str]:
+    """What to do about a missing scope, for the credential actually in use.
+
+    The common case is a sign-in approved before 0.8.0, which asked for
+    agents + models only. The fix is to sign in again; saying only "out of
+    scope" leaves an assistant to conclude the feature is unavailable.
+    """
+    try:
+        settings = _settings(args, enforce_origin=False)
+        record = storage.load_record()
+    except Exception:  # an error path must never raise
+        settings, record = None, {}
+    wanted = ", ".join(deviceauth.DEFAULT_SCOPES)
+    source = settings.source if settings else "none"
+
+    if source in ("env", "env-legacy"):
+        name = "FN2_API_TOKEN" if source == "env" else "FN2_API_KEY"
+        return [
+            f"the credential in {name} does not carry the `{scope}` scope, and "
+            "`fn2 auth login` cannot change an environment variable.",
+            f"Set {name} to a credential that has `{scope}` (an API key "
+            "created with that scope at fn2.ai > Preferences > Developer), or "
+            f"unset {name} and run `fn2 auth login`.",
+        ]
+    if settings is not None and settings.credential_kind == "api_key":
+        return [
+            f"this API key was created without the `{scope}` scope.",
+            f"Run `fn2 auth login` (browser sign-in; grants {wanted}), or "
+            f"create a key with `{scope}` at fn2.ai > Preferences > Developer "
+            "and store it with `fn2 login`.",
+        ]
+    held = record.get("scopes") if isinstance(record.get("scopes"), list) else None
+    has = f" (it has: {', '.join(str(s) for s in held)})" if held else ""
+    why = (" It was approved before FN2 AI offered direct research reads."
+           if scope == _RESEARCH_SCOPE else "")
+    return [
+        f"this sign-in does not carry the `{scope}` scope{has}.{why}",
+        f"Sign in again to add it (grants {wanted}; your agents and schedules "
+        "are untouched):",
+        "    fn2 auth login --no-wait    # prints a code and URL: approve it "
+        "in the browser",
+        "    fn2 auth login              # finishes and stores the new credential",
+        "Then run this command again.",
+    ]
 
 
 # ---------------------------------------------------------------------------
@@ -265,6 +363,8 @@ def cmd_auth_status(args: argparse.Namespace) -> int:
         "kind": settings.credential_kind,
         "endpoint": settings.base_url,
         "scopes": record.get("scopes"),
+        # None = cannot be told locally (env credential, or a bare API key).
+        "research_access": _research_access(settings, record),
         "expires_at": record.get("expires_at"),
         "last_verified_at": record.get("last_verified_at"),
     }
@@ -276,6 +376,7 @@ def cmd_auth_status(args: argparse.Namespace) -> int:
         usage = api.usage(client)
         info["verified"] = True
         info["plan"] = usage.get("plan")
+        info["research_access"] = _research_access(settings, record, usage)
         if settings.source in ("keychain", "file") and record:
             record["last_verified_at"] = render.now_iso()
             try:
@@ -298,6 +399,8 @@ def cmd_auth_status(args: argparse.Namespace) -> int:
         print(f"credential {info['credential']} ({kind_label})")
         if info.get("scopes"):
             print(f"scopes     {', '.join(info['scopes'])}")
+        if info["research_access"] is False:
+            print(f"research   {_RESEARCH_HINT}")
         if info.get("expires_at"):
             print(f"expires    {render.fmt_ts(info['expires_at'])}")
         print(f"endpoint   {settings.base_url}")
@@ -372,15 +475,23 @@ def cmd_permissions(args: argparse.Namespace) -> int:
             print(f"not signed in. Run `fn2 auth login` ({settings.onboard_url}).")
         return 2
 
-    scopes = record.get("scopes") or list(deviceauth.DEFAULT_SCOPES)
+    scopes = record.get("scopes") or list(_ASSUMED_SCOPES)
     scope_detail = [
         {"scope": s, "meaning": _SCOPE_MEANINGS.get(s, "(no description)")}
         for s in scopes
     ]
+    research = _research_access(settings, record)
+    missing = []
+    if research is False:
+        missing.append({"scope": _RESEARCH_SCOPE,
+                        "meaning": _SCOPE_MEANINGS[_RESEARCH_SCOPE],
+                        "fix": "fn2 auth login"})
     if json_mode:
         _emit_json_safe({
             "kind": settings.credential_kind,
             "scopes": scope_detail,
+            "missing_scopes": missing,
+            "research_access": research,
             "not_granted": list(_NOT_GRANTED),
             "expires_at": record.get("expires_at"),
         })
@@ -388,10 +499,17 @@ def cmd_permissions(args: argparse.Namespace) -> int:
 
     print(style.head("granted scopes:"))
     for entry in scope_detail:
-        print(f"  {style.paint(entry['scope'].ljust(8), 'cyan')}{entry['meaning']}")
+        print(f"  {style.paint(entry['scope'].ljust(10), 'cyan')}{entry['meaning']}")
     if settings.credential_kind == "api_key" and not record.get("scopes"):
-        print(style.label("  (scopes as granted at key creation: see fn2.ai > "
-                          "Preferences > Developer)"))
+        print(style.label("  (assumed: an API key's scopes are chosen at key "
+                          "creation, see fn2.ai > Preferences > Developer. The "
+                          "direct research commands need `research`.)"))
+    if missing:
+        print("\n" + style.head("not granted yet:"))
+        print(f"  {style.paint(_RESEARCH_SCOPE.ljust(10), 'yellow')}"
+              f"{_SCOPE_MEANINGS[_RESEARCH_SCOPE]}")
+        print("            add it: run `fn2 auth login` again (this sign-in "
+              "predates research access)")
     print("\n" + style.head("this credential can NOT:"))
     for line in _NOT_GRANTED:
         print(f"  - {line}")
@@ -613,7 +731,8 @@ def cmd_login(args: argparse.Namespace) -> int:
         print("The easy way is the browser sign-in, with no key copying:\n")
         print("    fn2 auth login\n")
         print("Advanced fallback (CI / manual): create an API key with the 'agents'")
-        print(f"scope in the FN2 AI web app ({settings.onboard_url}), then:")
+        print("scope (plus 'research' for the direct research commands) in the")
+        print(f"FN2 AI web app ({settings.onboard_url}), then:")
         print("\n    fn2 login --token fn2_xxxxxxxxxxxxxxxxxxxx\n")
         if sys.stdin.isatty():
             try:
@@ -659,12 +778,194 @@ def cmd_whoami(args: argparse.Namespace) -> int:
     print(f"{style.label('credential ')}{config.mask(settings.api_key)} "
           f"({kind_label}, from {settings.source})")
     render.usage(info)
+    if _research_access(settings, storage.load_record(), info) is False:
+        print(f"{style.label('note       ')}research scope {_RESEARCH_HINT}")
     return 0
 
 
 def cmd_models(args: argparse.Namespace) -> int:
     client = _client(args)
     _out(args, api.list_models(client), render.models)
+    return 0
+
+
+# ---------------------------------------------------------------------------
+# research: direct, read-only data reads (scope `research`)
+# ---------------------------------------------------------------------------
+# One request each, no agent run. Limits mirror the API's own bounds so an
+# out-of-range value is refused here instead of being silently clamped there.
+PRICE_RANGES = ("1D", "5D", "1M", "3M", "6M", "YTD", "1Y", "5Y", "MAX")
+
+# Terminal assistants cut a command's output near this many characters.
+_ASSISTANT_OUTPUT_LIMIT = 30000
+# A transcript page that, with its header, stays under that ceiling. The
+# median call is about 41,000 characters, so most calls take two pages.
+_TRANSCRIPT_PAGE = 24000
+_FRED_OBSERVATIONS = 60
+
+
+def _stdout_is_terminal() -> bool:
+    try:
+        return bool(sys.stdout.isatty())
+    except (AttributeError, ValueError):
+        return False
+
+
+def _research_out(args: argparse.Namespace, obj: Any, view) -> None:
+    """`_out`, plus a guard against a harness silently cutting a long answer.
+
+    When the reader is a pipe (an assistant, almost always), the view is
+    rendered first and measured. Past the usual tool-output ceiling the FIRST
+    line says so and how to narrow the request, because a warning at the end
+    would be the part that gets cut.
+    """
+    if getattr(args, "json", False):
+        render.emit_json(obj)
+        return
+    if _stdout_is_terminal():
+        view(obj)
+        return
+    buffer = io.StringIO()
+    with contextlib.redirect_stdout(buffer):
+        view(obj)
+    text = buffer.getvalue()
+    if len(text) > _ASSISTANT_OUTPUT_LIMIT - 500:
+        print(f"note: this output is {len(text):,} characters. Terminal "
+              f"assistants usually cut tool output near "
+              f"{_ASSISTANT_OUTPUT_LIMIT:,}, so the END may be missing. Ask for "
+              "less (a smaller --limit or --max-chars, or the next page with "
+              "--offset), or redirect to a file and read it in parts.")
+    sys.stdout.write(text)
+
+
+def _int_between(low: int, high: int):
+    # Separators help read 60,000; they would garble a year (1,900).
+    span = f"{low:,} to {high:,}" if high >= 10000 else f"{low} to {high}"
+
+    def parse(text: str) -> int:
+        try:
+            value = int(text)
+        except ValueError:
+            raise argparse.ArgumentTypeError(f"expected a whole number from {span}")
+        if not low <= value <= high:
+            raise argparse.ArgumentTypeError(f"must be from {span}")
+        return value
+    return parse
+
+
+def _ticker_arg(text: str) -> str:
+    value = (text or "").strip().upper()
+    if not value or len(value) > 20 or any(ch.isspace() for ch in value):
+        raise argparse.ArgumentTypeError(
+            "expected one ticker symbol, e.g. NFLX or BRK.B")
+    return value
+
+
+def _date_arg(text: str) -> str:
+    value = (text or "").strip()
+    try:
+        if dt.date.fromisoformat(value).isoformat() != value:
+            raise ValueError
+    except ValueError:
+        raise argparse.ArgumentTypeError("expected a date as YYYY-MM-DD")
+    return value
+
+
+def _transcript_id_arg(text: str) -> str:
+    try:
+        return str(uuid.UUID((text or "").strip()))
+    except ValueError:
+        raise argparse.ArgumentTypeError(
+            "expected a transcript id as printed by `fn2 earnings` or "
+            "`fn2 calls`")
+
+
+def cmd_earnings(args: argparse.Namespace) -> int:
+    client = _client(args)
+    data = api.earnings(client, args.symbol, limit=args.limit)
+    _research_out(args, data, render.earnings)
+    return 0
+
+
+def cmd_calls(args: argparse.Namespace) -> int:
+    client = _client(args)
+    data = api.list_transcripts(client, args.symbol, limit=args.limit)
+    _research_out(args, data, lambda d: render.calls(d, limit=args.limit))
+    return 0
+
+
+def cmd_transcript(args: argparse.Namespace) -> int:
+    if not args.symbol and not args.id:
+        raise SystemExit("error: name a ticker for its most recent call "
+                         "(`fn2 transcript NFLX`) or one call with --id.")
+    if (args.year is None) != (args.quarter is None):
+        raise SystemExit("error: --year and --quarter go together, e.g. "
+                         "--year 2026 --quarter 3.")
+    if args.id and args.year is not None:
+        raise SystemExit("error: --id already names one call; drop --year "
+                         "and --quarter.")
+    if args.year is not None and not args.symbol:
+        raise SystemExit("error: --year and --quarter need a ticker.")
+    client = _client(args)
+    data = api.read_transcript(
+        client, symbol=args.symbol, fiscal_year=args.year,
+        fiscal_quarter=args.quarter, transcript_id=args.id,
+        offset=args.offset, max_chars=args.max_chars)
+    # The `next page:` line repeats a page size only when one was chosen.
+    page = args.max_chars if args.max_chars != _TRANSCRIPT_PAGE else None
+    _research_out(args, data, lambda d: render.transcript(
+        d, requested_symbol=args.symbol, max_chars=page))
+    return 0
+
+
+def cmd_search(args: argparse.Namespace) -> int:
+    query = " ".join(args.query).strip()
+    if len(query) < 2:
+        raise SystemExit("error: give a search query of at least 2 characters.")
+    client = _client(args)
+    data = api.search_transcripts(
+        client, query, symbol=args.symbol, after=args.after,
+        transcript_id=args.call, limit=args.limit)
+    _research_out(args, data, lambda d: render.transcript_search(
+        d, limit=args.limit, requested_symbol=args.symbol))
+    return 0
+
+
+def cmd_financials(args: argparse.Namespace) -> int:
+    client = _client(args)
+    data = api.financials(client, args.symbol, variant=args.variant,
+                          limit=args.limit)
+    _research_out(args, data, render.financials)
+    return 0
+
+
+def cmd_price(args: argparse.Namespace) -> int:
+    client = _client(args)
+    data = api.prices(client, args.symbol, history_range=args.range)
+    _research_out(args, data, render.price)
+    return 0
+
+
+def cmd_fred(args: argparse.Namespace) -> int:
+    series_id = (args.series_id or "").strip().upper() or None
+    if series_id is None and args.limit is not None:
+        raise SystemExit("error: --limit counts observations, so it needs a "
+                         "SERIES_ID; `fn2 fred` alone lists every series.")
+    limit = (args.limit or _FRED_OBSERVATIONS) if series_id else None
+    client = _client(args)
+    data = api.fred(client, series_id, limit=limit)
+    _research_out(args, data, lambda d: render.fred(d, limit=limit))
+    return 0
+
+
+def cmd_recall(args: argparse.Namespace) -> int:
+    client = _client(args)
+    query = " ".join(args.query).strip() or None
+    agent_id = _resolve_agent(client, args.agent) if args.agent else None
+    data = api.recall(client, query=query, agent_id=agent_id, tag=args.tag,
+                      limit=args.limit)
+    _research_out(args, data, lambda d: render.recall(d, limit=args.limit,
+                                                      tag=args.tag))
     return 0
 
 
@@ -925,7 +1226,9 @@ def cmd_delete(args: argparse.Namespace) -> int:
 def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(
         prog="fn2",
-        description="Start, watch, and schedule FN2 AI research agents.",
+        description="Research public markets with FN2 AI: read earnings, call "
+                    "transcripts, financials, prices and macro data directly, "
+                    "or start, watch, and schedule research agents.",
     )
     parser.add_argument("--version", action="version",
                         version=f"fn2-skill {__version__}")
@@ -990,6 +1293,99 @@ def build_parser() -> argparse.ArgumentParser:
 
     add("whoami", cmd_whoami, "show the signed-in account, plan, and quota")
     add("models", cmd_models, "list models available to your account")
+
+    # -- research: direct reads, one request each ------------------------
+    p = add("earnings", cmd_earnings,
+            "reported quarters vs analyst consensus, report dates, next report")
+    p.add_argument("symbol", type=_ticker_arg, help="ticker, e.g. NFLX")
+    p.add_argument("--limit", type=_int_between(1, 12), default=4, metavar="N",
+                   help="reported quarters to show, newest first (1-12, default 4)")
+    add_json(p)
+
+    p = add("calls", cmd_calls, "list the earnings calls FN2 holds for a ticker",
+            aliases=("transcripts",))
+    p.add_argument("symbol", type=_ticker_arg, help="ticker, e.g. NFLX")
+    p.add_argument("--limit", type=_int_between(1, 40), default=8, metavar="N",
+                   help="calls to list, newest first (1-40, default 8)")
+    add_json(p)
+
+    p = add("transcript", cmd_transcript,
+            "read an earnings call in speaker order, a page at a time")
+    p.add_argument("symbol", nargs="?", type=_ticker_arg,
+                   help="ticker; alone it reads the most recent call")
+    p.add_argument("--id", type=_transcript_id_arg, metavar="ID",
+                   help="one call, by the transcript id `earnings` / `calls` print")
+    p.add_argument("--year", type=_int_between(1900, 2200), metavar="Y",
+                   help="fiscal year as labelled on the transcript, see "
+                        "`fn2 calls` (with --quarter)")
+    p.add_argument("--quarter", type=_int_between(1, 4), metavar="Q",
+                   help="fiscal quarter 1-4 (with --year)")
+    p.add_argument("--offset", type=_int_between(0, 10_000_000), default=0,
+                   metavar="N", help="character to start from; use the value "
+                                     "the `next page:` line prints (default 0)")
+    p.add_argument("--max-chars", type=_int_between(1000, 60000),
+                   default=_TRANSCRIPT_PAGE, metavar="N",
+                   help=f"page size, 1000-60000 (default {_TRANSCRIPT_PAGE}; "
+                        "larger pages can be cut off by a terminal "
+                        "assistant's output limit)")
+    add_json(p)
+
+    p = add("search", cmd_search,
+            "search earnings-call text for what executives said")
+    p.add_argument("query", nargs="+", help="what to look for, e.g. "
+                                            "\"ad tier revenue\"")
+    p.add_argument("--symbol", type=_ticker_arg, metavar="S",
+                   help="only this company's calls")
+    p.add_argument("--after", type=_date_arg, metavar="YYYY-MM-DD",
+                   help="only calls held on or after this date")
+    p.add_argument("--call", type=_transcript_id_arg, metavar="ID",
+                   help="only inside one call (a transcript id)")
+    p.add_argument("--limit", type=_int_between(1, 20), default=5, metavar="N",
+                   help="speaker turns to return (1-20, default 5)")
+    add_json(p)
+
+    p = add("financials", cmd_financials,
+            "income, margin, cash-flow and debt figures from SEC filings")
+    p.add_argument("symbol", type=_ticker_arg, help="ticker, e.g. NFLX")
+    variant = p.add_mutually_exclusive_group()
+    variant.add_argument("--annual", dest="variant", action="store_const",
+                         const="annual", help="fiscal years (default)")
+    variant.add_argument("--quarterly", dest="variant", action="store_const",
+                         const="quarterly", help="single quarters")
+    variant.add_argument("--ttm", dest="variant", action="store_const",
+                         const="ttm", help="trailing twelve months")
+    p.set_defaults(variant="annual")
+    p.add_argument("--limit", type=_int_between(1, 12), default=5, metavar="N",
+                   help="periods to show (1-12, default 5)")
+    add_json(p)
+
+    p = add("price", cmd_price, "current quote, plus price history with --range",
+            aliases=("prices", "quote"))
+    p.add_argument("symbol", type=_ticker_arg, help="ticker, e.g. NFLX")
+    p.add_argument("--range", type=str.upper, choices=PRICE_RANGES,
+                   metavar="RANGE", help="also return price history over: "
+                                         + ", ".join(PRICE_RANGES))
+    add_json(p)
+
+    p = add("fred", cmd_fred,
+            "a FRED macro series (CPI, rates, yields), or the list of series")
+    p.add_argument("series_id", nargs="?", metavar="SERIES_ID",
+                   help="e.g. DGS10, UNRATE, CPIAUCSL; omit to list the series")
+    p.add_argument("--limit", type=_int_between(1, 500), metavar="N",
+                   help="most recent observations to return (1-500, default "
+                        f"{_FRED_OBSERVATIONS}); needs a SERIES_ID")
+    add_json(p)
+
+    p = add("recall", cmd_recall,
+            "search the notes your FN2 AI agents saved on this account")
+    p.add_argument("query", nargs="*", help="words to look for; omit to list "
+                                            "recent notes")
+    p.add_argument("--agent", metavar="ID",
+                   help="only one agent's notes (id, id prefix, or name)")
+    p.add_argument("--tag", metavar="T", help="only notes with this tag")
+    p.add_argument("--limit", type=_int_between(1, 50), default=12, metavar="N",
+                   help="notes to return (1-50, default 12)")
+    add_json(p)
 
     p = add("start", cmd_start, "create an agent (runs now, or on a schedule)")
     p.add_argument("prompt", help="what the agent should research/do")
@@ -1057,16 +1453,34 @@ def build_parser() -> argparse.ArgumentParser:
     return parser
 
 
+def _api_sentence(exc: ApiError) -> str:
+    """The API's own error sentence, without the `HTTP nnn:` prefix or any
+    retry suffix the client layer adds."""
+    payload = exc.payload if isinstance(exc.payload, dict) else {}
+    sentence = payload.get("error")
+    if isinstance(sentence, str) and sentence.strip():
+        return sentence.strip()
+    return str(exc.args[0]) if exc.args else str(exc)
+
+
 def main(argv: Optional[List[str]] = None) -> int:
     # The CLI is routinely driven by an assistant through a pipe, where Python
     # block-buffers stdout: a sign-in code would sit invisible in the buffer
     # exactly when the user needs it. Force line buffering; streams that cannot
     # reconfigure (StringIO under test, exotic wrappers) keep their behaviour.
+    #
+    # The research commands print other people's words verbatim (call
+    # transcripts, saved notes). A piped stdout on a legacy code page cannot
+    # encode every character in them, and the default is to raise mid-print,
+    # losing the rest of the answer; escape what cannot be encoded instead.
+    # Two calls, so a stream that cannot take one setting still gets the other.
     for stream in (sys.stdout, sys.stderr):
-        try:
-            stream.reconfigure(line_buffering=True)
-        except Exception:
-            pass
+        for setting in ({"line_buffering": True},
+                        {"errors": "backslashreplace"}):
+            try:
+                stream.reconfigure(**setting)
+            except Exception:
+                pass
     parser = build_parser()
     args = parser.parse_args(argv)
     # --json is machine-readable by contract, so it is never colourised.
@@ -1076,13 +1490,32 @@ def main(argv: Optional[List[str]] = None) -> int:
         return args.func(args)
     except AuthError as exc:
         print(f"error: {config.redact(str(exc))}", file=sys.stderr)
-        print("your credential may be revoked or out of scope; run `fn2 auth login` again.",
-              file=sys.stderr)
+        scope = _missing_scope(exc)
+        if scope:
+            # Not a dead credential: one that predates a scope. Say exactly
+            # how to add it, or the reader concludes the feature is missing.
+            for line in _scope_fix(scope, args):
+                print(line, file=sys.stderr)
+        else:
+            print("your credential may be revoked or out of scope; run "
+                  "`fn2 auth login` again.", file=sys.stderr)
         return 1
     except storage.StorageError as exc:
         print(f"error: {config.redact(str(exc))}", file=sys.stderr)
         return 1
-    except (ApiError, schedule.ScheduleError) as exc:
+    except ApiError as exc:
+        if exc.code == "api_quota_exceeded":
+            # The weekly research allowance. The API's sentence names the
+            # plan, the limit, the reset date and the upgrade URL, so it is
+            # printed exactly as sent; a retry cannot succeed before the reset.
+            print(f"error: {config.redact(_api_sentence(exc))}", file=sys.stderr)
+            print("this is the weekly FN2 AI research allowance, not an "
+                  "outage: do not retry. Relay the message above as written; "
+                  "`fn2 whoami` shows the allowance.", file=sys.stderr)
+            return 1
+        print(f"error: {config.redact(str(exc))}", file=sys.stderr)
+        return 1
+    except schedule.ScheduleError as exc:
         print(f"error: {config.redact(str(exc))}", file=sys.stderr)
         return 1
     except KeyboardInterrupt:  # pragma: no cover

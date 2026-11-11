@@ -5,6 +5,11 @@ Mirrors ``/api/v1`` on the fn2 backend:
     agents      POST/GET/PATCH/DELETE /agents[/<id>]
     runs        POST /agents/<id>/run, GET /agents/<id>/runs[/<run_id>]
     account     GET /usage, GET /models
+    research    GET /research/{earnings,transcripts,transcripts/read,
+                transcripts/search,financials,prices,fred,recall}
+
+The research routes are read-only, need the ``research`` scope, and draw on
+the account's weekly research-request allowance (only a 2xx spends it).
 """
 
 from __future__ import annotations
@@ -83,3 +88,77 @@ def usage(client: Client) -> Dict[str, Any]:
 
 def list_models(client: Client) -> Any:
     return client.get(f"{_V1}/models")
+
+
+# -- research (read-only; scope `research`) -------------------------------
+# Optional arguments left as None are omitted from the query string, so the
+# server's own defaults apply and are never duplicated here.
+def earnings(client: Client, symbol: str, *,
+             limit: Optional[int] = None) -> Dict[str, Any]:
+    """Reported quarters vs analyst consensus, newest first, + the next report."""
+    return client.get(f"{_V1}/research/earnings",
+                      params={"symbol": symbol, "limit": limit})
+
+
+def list_transcripts(client: Client, symbol: str, *,
+                     limit: Optional[int] = None) -> Dict[str, Any]:
+    """The earnings calls FN2 holds for a ticker, newest first."""
+    return client.get(f"{_V1}/research/transcripts",
+                      params={"symbol": symbol, "limit": limit})
+
+
+def read_transcript(client: Client, *, symbol: Optional[str] = None,
+                    fiscal_year: Optional[int] = None,
+                    fiscal_quarter: Optional[int] = None,
+                    transcript_id: Optional[str] = None,
+                    offset: Optional[int] = None,
+                    max_chars: Optional[int] = None) -> Dict[str, Any]:
+    """One page of a call's text in speaker order. `symbol` alone reads the
+    most recent call; pages chain through the response's `next_offset`."""
+    return client.get(f"{_V1}/research/transcripts/read",
+                      params={"symbol": symbol, "fiscal_year": fiscal_year,
+                              "fiscal_quarter": fiscal_quarter,
+                              "transcript_id": transcript_id,
+                              "offset": offset, "max_chars": max_chars})
+
+
+def search_transcripts(client: Client, query: str, *,
+                       symbol: Optional[str] = None,
+                       after: Optional[str] = None,
+                       transcript_id: Optional[str] = None,
+                       limit: Optional[int] = None) -> Dict[str, Any]:
+    """Relevance-ranked speaker turns; `transcript_id` restricts to one call."""
+    return client.get(f"{_V1}/research/transcripts/search",
+                      params={"query": query, "symbol": symbol, "after": after,
+                              "transcript_id": transcript_id, "limit": limit})
+
+
+def financials(client: Client, symbol: str, *, variant: Optional[str] = None,
+               limit: Optional[int] = None) -> Dict[str, Any]:
+    """SEC-filing-derived periods; `variant` is annual | quarterly | ttm."""
+    return client.get(f"{_V1}/research/financials",
+                      params={"symbol": symbol, "variant": variant,
+                              "limit": limit})
+
+
+def prices(client: Client, symbol: str, *,
+           history_range: Optional[str] = None) -> Dict[str, Any]:
+    """Quote snapshot, plus a price series when a range is given."""
+    return client.get(f"{_V1}/research/prices",
+                      params={"symbol": symbol, "range": history_range})
+
+
+def fred(client: Client, series_id: Optional[str] = None, *,
+         limit: Optional[int] = None) -> Dict[str, Any]:
+    """Observations for one FRED series, or the catalog when none is named."""
+    return client.get(f"{_V1}/research/fred",
+                      params={"series_id": series_id, "limit": limit})
+
+
+def recall(client: Client, *, query: Optional[str] = None,
+           agent_id: Optional[str] = None, tag: Optional[str] = None,
+           limit: Optional[int] = None) -> Dict[str, Any]:
+    """The account's own saved memory (what its agents stored)."""
+    return client.get(f"{_V1}/research/recall",
+                      params={"query": query, "agent_id": agent_id,
+                              "tag": tag, "limit": limit})

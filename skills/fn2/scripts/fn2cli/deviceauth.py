@@ -27,7 +27,11 @@ POLL_PATH = "/api/v1/skill/device-auth/poll"
 LOGOUT_PATH = "/api/v1/skill/device-auth/logout"
 
 CLIENT_ID = "fn2-skill"
-DEFAULT_SCOPES = ("agents", "models")
+# `research` is the read-only market-data surface (earnings, transcripts,
+# prices, financials, FRED, saved memory). Sign-ins made before 0.8.0 asked
+# for the first two only; the CLI tells those users to sign in again when a
+# research command comes back 403.
+DEFAULT_SCOPES = ("agents", "models", "research")
 DEFAULT_INTERVAL = 5
 GRACE_SECONDS = 30
 # Hard ceiling on any single sleep. The server caps its slow_down bump at 30s
