@@ -294,7 +294,7 @@ def build(now: dt.datetime) -> Dict[str, Any]:
         },
         "device": {
             "label": "Claude Code on macOS",
-            "scopes": ["agents", "models"],
+            "scopes": ["agents", "models", "research"],
             "expires_at": _iso(now + dt.timedelta(days=90)),
         },
     }
@@ -321,7 +321,7 @@ def build(now: dt.datetime) -> Dict[str, Any]:
         "status": "approved",
         "access_token": DEMO_TOKEN,
         "device_id": "dev_2n8QpL",
-        "scopes": ["agents", "models"],
+        "scopes": ["agents", "models", "research"],
         "expires_at": _iso(now + dt.timedelta(days=90)),
         "account": DEMO_ACCOUNT,
     }
