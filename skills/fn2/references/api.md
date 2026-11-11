@@ -11,7 +11,8 @@ under `/api/v1`. Authenticate with a bearer credential:
   (Preferences → Developer): the advanced/CI fallback.
 
 Either is sent as `Authorization: Bearer …` and needs the **`agents`** scope
-for agent routes and **`models`** for the model list.
+for agent routes, **`models`** for the model list, and **`research`** for the
+[research routes](#research).
 
 ## Device authorization (how `fn2 auth login` connects)
 
@@ -31,17 +32,24 @@ credential. These routes are unauthenticated (except `logout`) and return
 ```json
 {
   "client": "fn2-skill",
-  "client_version": "0.2.1",
+  "client_version": "0.8.0",
   "harness": "claude",
   "os": "macos",
-  "scopes": ["agents", "models"]
+  "scopes": ["agents", "models", "research"]
 }
 ```
 
 `client` must be `fn2-skill`; `harness` is one of
 `claude|codex|pi|openclaw|hermes|other`, `os` one of
 `macos|linux|windows|other`; `scopes` must be a non-empty subset of
-`{agents, models}`. `201` returns the codes; the request lives 15 minutes.
+`{agents, models, research}`. `201` returns the codes; the request lives 15
+minutes.
+
+The CLI requests all three scopes since 0.8.0. Earlier versions requested
+`agents` and `models` only, and a device token never gains a scope after it is
+issued: a research route answers such a token with
+`403 {"error": "Missing scope: research"}`, and the fix is a new
+`fn2 auth login`. A device token cannot hold `chat`.
 
 ### `poll` statuses (always `200` unless malformed)
 
@@ -159,6 +167,169 @@ A run object:
 | `GET` | `/usage` | plan, token quota/usage, the weekly `research_requests` allowance, credential metadata (includes a `device` block when authenticated with a device token) |
 | `GET` | `/models` | models enabled for the account |
 
+## Research
+
+Read-only market data. Every route is `GET`, needs the **`research`** scope,
+and draws on the [weekly research allowance](#the-research-surface-and-its-weekly-allowance)
+(only a `2xx` spends a request). These are the routes behind the CLI's direct
+research commands; see [research.md](research.md) for how to read the output.
+
+| Method | Path | CLI | Purpose |
+|---|---|---|---|
+| `GET` | `/research/earnings` | `fn2 earnings` | reported quarters vs analyst consensus, and the next report |
+| `GET` | `/research/transcripts` | `fn2 calls` | the earnings calls FN2 holds text for |
+| `GET` | `/research/transcripts/read` | `fn2 transcript` | one call's text, a page at a time |
+| `GET` | `/research/transcripts/search` | `fn2 search` | relevance-ranked speaker turns |
+| `GET` | `/research/financials` | `fn2 financials` | SEC-filing-derived periods |
+| `GET` | `/research/prices` | `fn2 price` | quote snapshot and optional price history |
+| `GET` | `/research/fred` | `fn2 fred` | FRED series observations, or the catalog |
+| `GET` | `/research/recall` | `fn2 recall` | the account's own saved memory |
+
+### `GET /research/earnings?symbol=NFLX&limit=4`
+
+`limit` 1-12, default 4.
+
+```json
+{
+  "symbol": "NFLX", "as_of": "2026-11-11", "count": 4, "possibly_stale": false,
+  "reported": [{
+    "fiscal_period": "Q3 '26", "fiscal_year": 2026, "fiscal_quarter": 3,
+    "fiscal_date_ending": "2026-09-30", "report_date": "2026-10-20",
+    "session": "amc",
+    "eps": {"actual": 0.0, "estimate": 0.0, "surprise": 0.0, "surprise_pct": 0.0, "outcome": "beat"},
+    "revenue": {"actual": 0, "estimate": 0, "surprise": 0, "surprise_pct": 0.0, "outcome": "beat"},
+    "call": {"transcript_id": "…", "call_date": "2026-10-20"}
+  }],
+  "next": {
+    "report_date": "2027-01-19", "session": "unknown",
+    "fiscal_date_ending": "2026-12-31", "fiscal_period": "Q4 '26",
+    "fiscal_year": 2026, "fiscal_quarter": 4,
+    "eps_estimate": 0.0, "revenue_estimate": 0, "date_status": "estimated"
+  },
+  "notes": ["…"]
+}
+```
+
+(The zeros are placeholders for the shape, not data.)
+
+- `reported` is newest first and holds only quarters with actuals.
+- `session` is `bmo`, `amc`, or `unknown`.
+- `estimate` is analyst consensus from a market-data vendor, not company
+  guidance. `outcome` is `beat`, `miss`, `match`, or `null`.
+- Any numeric leaf, the three fiscal-label fields, `call`, and `next` may be
+  `null`.
+- `possibly_stale: true` means the newest result held is old and no report is
+  scheduled; `notes[0]` then says so in a sentence meant to be relayed.
+- `404 not_found` when FN2 has neither results nor a scheduled report.
+
+### `GET /research/transcripts?symbol=NFLX&limit=8`
+
+`limit` 1-40, default 8. Newest first.
+
+```json
+{
+  "symbol": "NFLX", "count": 8,
+  "calls": [{"transcript_id": "…", "call_date": "2026-10-20",
+             "fiscal_year": 2026, "fiscal_quarter": 3, "characters": 36427}],
+  "coverage_note": "…"
+}
+```
+
+`404 not_found` when FN2 holds no call text for the symbol.
+
+### `GET /research/transcripts/read`
+
+Name the call with `transcript_id`, or with `symbol` (alone: the most recent
+call) plus optional `fiscal_year` and `fiscal_quarter` (given together).
+`offset` defaults to 0; `max_chars` is 1000-60000, default 24000.
+
+```json
+{
+  "transcript_id": "…", "symbol": "NFLX", "call_date": "2026-10-20",
+  "fiscal_year": 2026, "fiscal_quarter": 3,
+  "characters": 36427, "offset": 0, "returned": 23950, "next_offset": 23950,
+  "text": "Operator: …\n\nName: paragraph…"
+}
+```
+
+`text` is the call in speaker order. Pages end on a paragraph boundary and
+join exactly; pass `next_offset` back as `offset` until it is `null`.
+`404 not_found` when no such call is held; `400 invalid_request` when neither
+`symbol` nor `transcript_id` is given, or `transcript_id` is not a transcript id.
+
+### `GET /research/transcripts/search?query=…`
+
+`query` (at least 2 characters) is required. Optional: `symbol`, `after`
+(`YYYY-MM-DD`, calls held on or after), `transcript_id` (one call), `limit`
+1-20, default 5.
+
+```json
+{
+  "query": "ad tier", "symbol": "NFLX", "after": null, "transcript_id": null,
+  "count": 5,
+  "results": [{"symbol": "NFLX", "company_name": "…", "fiscal_year": 2026,
+               "fiscal_quarter": 3, "call_date": "2026-10-20", "speaker": "…",
+               "text": "…", "highlights": ["…"], "transcript_id": "…",
+               "block_id": 41, "score": 12.3}],
+  "coverage_note": "…"
+}
+```
+
+Results are ranked by relevance, not date, and segments under 40 characters
+are never returned. `highlights` holds the keyword-matched fragments; `null`
+means the result matched by meaning only and has to be read before it is
+cited, because the nearest passage is returned even for a topic the call never
+raised. An empty result is `200` with `count: 0`. A date filter that matches
+too many calls is `422 transcript_filter_too_broad`: add a symbol or a later
+date.
+
+### `GET /research/financials?symbol=NFLX&variant=quarterly&limit=5`
+
+`variant` is `annual` (default), `quarterly`, or `ttm`; `limit` 1-12, default 5.
+Returns `{ticker, variant, periods[], coverage, unavailable}`. Each period has
+`period_end`, `fiscal_year`, `fiscal_period`, `form_type`, `filing_date`,
+`quality`, and `values`: `revenue`, `gross_profit`, `operating_income`,
+`ebitda`, `net_income`, `diluted_eps`, `operating_cash_flow`, `capex`,
+`free_cash_flow`, `cash`, `short_term_debt`, `long_term_debt`, `total_debt`,
+the margins (`gross_margin`, `operating_margin`, `ebitda_margin`, `net_margin`,
+`free_cash_flow_margin`, in percent) and year-over-year `revenue_growth` and
+`diluted_eps_growth` (percent). A missing value is `null`, never `0`.
+`404 not_found` when FN2 has no SEC-derived financials for the symbol.
+
+### `GET /research/prices?symbol=NFLX[&range=1M]`
+
+`{symbol, quote: {session, source, regular: {price, change, change_pct,
+previous_close, as_of}, extended: {price, as_of, change_vs_close_pct} | null}}`,
+plus `history: {range, truncated, point_format, points}` when `range` is one of
+`1D 5D 1M 3M 6M YTD 1Y 5Y MAX`. Points are
+`[timestamp_ms, close, volume, open, high, low]`, oldest first, at most 400.
+Delayed market data, not a real-time feed.
+
+### `GET /research/fred[?series_id=DGS10&limit=60]`
+
+Without `series_id`: `{count, series[]}`, the catalog. With it:
+`{series_id, metadata, count, observations: [{date, value, yoy_pct, mom_pct,
+qoq_pct}]}`, oldest first; `limit` 1-500, default 60, is the number of most
+recent observations.
+
+### `GET /research/recall[?query=…&agent_id=…&tag=…&limit=12]`
+
+`{query, agent_id, count, memories[]}`: notes saved on the caller's own
+account, most recently updated first. `limit` 1-50, default 12.
+
+### Research errors
+
+Errors use the `{error, code, request_id, retryable, retry_after, …}` envelope
+described under **Reliability**, with these codes:
+
+| Status | `code` | Meaning |
+|---|---|---|
+| `400` | `invalid_request` | a missing or malformed parameter (`field_errors` names it) |
+| `403` | none | `{"error": "Missing scope: research"}`: the credential lacks the scope |
+| `404` | `not_found` | FN2 has no data for that symbol, call, or series; not charged |
+| `429` | `api_quota_exceeded` | the weekly allowance is used up; `error` is a sentence to relay as written, with `quota`, `plan`, and `upgrade_url` alongside |
+| `503` | `upstream_unavailable`, `quota_check_failed` | a source is briefly down; `retryable: true` with `retry_after`; not charged |
+
 ## Reading results
 
 Run results are available through `GET /agents/{id}/runs/{run_id}`
@@ -191,6 +362,9 @@ doors onto one API.
 | `get_usage` | `GET /usage` | `agents` |
 | `list_models` | `GET /models` | `models` |
 | `run_chat` | `POST /chat/incognito` | `chat` |
+| `get_earnings` | `GET /research/earnings` | `research` |
+| `list_earnings_calls` | `GET /research/transcripts` | `research` |
+| `get_transcript` | `GET /research/transcripts/read` | `research` |
 | `search_transcripts` | `GET /research/transcripts/search` | `research` |
 | `recall` | `GET /research/recall` | `research` |
 | `get_stock_price` | `GET /research/prices` | `research` |
@@ -204,11 +378,13 @@ granted scopes can actually call. A client that requests no `scope` at all gets
 
 ### The research surface and its weekly allowance
 
-The five `research` tools are read-only market data: earnings-call text, prices,
-FRED series, SEC-derived financials, and the account's own saved notes. They spend
-no model tokens, so they are **not** metered against the monthly token quota. They
-draw on a separate **weekly request allowance** that resets Monday 00:00 UTC and
-depends on the plan:
+The eight `research` tools are read-only market data: earnings results against
+consensus, earnings-call text, prices, FRED series, SEC-derived financials, and the
+account's own saved notes. They are the [research routes](#research) above, which the
+CLI's direct research commands call with a device token or API key. They spend no
+model tokens, so they are **not** metered against the monthly token quota. They draw
+on a separate **weekly request allowance** that resets Monday 00:00 UTC and depends
+on the plan:
 
 | Plan | Research requests / week |
 |---|---|
@@ -220,7 +396,7 @@ depends on the plan:
 
 `GET /usage` reports it as `research_requests` (`used` / `limit` / `remaining` /
 `resets_at`) beside the token block, so a client can show what is left before a
-call fails. When it runs out the tool returns `429` with
+call fails (`fn2 whoami` prints it). When it runs out the tool returns `429` with
 `code: "api_quota_exceeded"` and an `error` message naming the plan, the limit,
 the reset date and the upgrade URL. **Relay it as written rather than retrying**;
 the number does not change until the reset. A failed call does not spend the

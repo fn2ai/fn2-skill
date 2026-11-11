@@ -1,34 +1,44 @@
 ---
 name: fn2
 description: >
-  Start, monitor, and schedule FN2 AI autonomous research agents for public
-  markets from your terminal assistant. Use when asked a markets research
-  question ("what did NVIDIA say about data-center demand on the last earnings
-  call?", "how is NVDA trading today?", "what changed in TSLA's latest 10-Q?"),
-  asked for a standing watch or alert ("notify me when AAPL drops more than
-  5%"), asked to launch or run an FN2 AI agent, to check what your agents are
-  doing or their latest results, to schedule an agent on a cadence ("before the
-  next market open", "every weekday at 8am", "hourly"), to
-  pause/resume/reschedule/delete an agent, or to connect an FN2 AI account.
-  Covers earnings-call transcripts, price action, SEC filings, FRED macro
-  series, and prediction markets. Talks to the public FN2 AI HTTP API with a
-  scoped, revocable device credential; no admin access required.
+  Answer public-markets research questions with FN2 AI data and research
+  agents. Use for earnings and financial-data questions ("summarize Netflix's
+  most recent earnings report and earnings call", "did NVDA beat consensus?",
+  "what did management say about pricing?", operating margin and other
+  SEC-filing financials, "how is NVDA trading today?", FRED macro series):
+  reads reported EPS and revenue vs analyst consensus with report dates, full
+  earnings-call transcripts, filing financials, and prices directly. Also use
+  to start, monitor, and schedule FN2 AI autonomous research agents for deeper
+  work (news, filing text, prediction markets), standing watches or alerts
+  ("notify me when AAPL drops more than 5%"), cadences ("before the next
+  market open", "every weekday at 8am"), to check agents and their latest
+  results, to pause/resume/reschedule/delete an agent, or to connect an FN2 AI
+  account. Uses the public FN2 AI HTTP API with a scoped, revocable device
+  credential.
 license: MIT
 allowed-tools: Bash
 metadata:
   homepage: https://fn2.ai
   hermes:
-    tags: [fn2, agents, markets, scheduling, automation]
+    tags: [fn2, research, earnings, agents, markets, scheduling, automation]
     category: integrations
     requires_toolsets: [terminal]
 ---
 
-# FN2 AI research agents, from your assistant
+# FN2 AI market research, from your assistant
 
-This skill drives the **public fn2.ai API** so you can start, watch, and
-schedule FN2 AI research agents without leaving Claude, Codex, or Pi. It is a
-single, dependency-free Python 3 helper: standard library only, no `pip
-install`, no build step.
+This skill drives the **public fn2.ai API** so you can answer market-research
+questions from FN2's data, and start, watch, and schedule FN2 AI research
+agents, without leaving Claude, Codex, or Pi. It is a single, dependency-free
+Python 3 helper: standard library only, no `pip install`, no build step.
+
+Two ways to answer, and the first is the default for a factual question:
+
+- **Read the data directly** (seconds, one request each): earnings results vs
+  consensus, earnings-call transcripts, SEC-filing financials, prices, FRED.
+  See **Research questions**.
+- **Run an agent** (minutes): multi-step synthesis, news, filing text,
+  prediction markets, anything scheduled. See **Agents: command cheatsheet**.
 
 ## First run: connect an account (no secret copying)
 
@@ -115,13 +125,85 @@ python3 "$FN2" --help
 `ls -td` puts the most recently installed copy first, so an upgraded plugin
 wins over a stale cached version.
 
-## Command cheatsheet
+## Research questions: read the data, don't launch an agent
+
+For a factual question about a company or a data series, read FN2's data
+directly. Every command here is one read-only request.
+
+```bash
+python3 "$FN2" earnings NFLX                 # reported quarters vs analyst consensus, report dates, next report, each call's transcript id
+python3 "$FN2" transcript NFLX --id <id>     # read that call in speaker order; follow its "next page:" line
+python3 "$FN2" transcript NFLX               # ...or the most recent call FN2 holds
+python3 "$FN2" calls NFLX                    # which calls FN2 holds: dates, ids, sizes
+python3 "$FN2" search "ad tier" --call <id>  # a topic inside one call; or --symbol NFLX [--after 2026-01-01] across calls
+python3 "$FN2" financials NFLX --quarterly   # revenue, margins, cash flow, debt from SEC filings (annual by default; --ttm)
+python3 "$FN2" price NFLX --range 1M         # quote; --range 1D|5D|1M|3M|6M|YTD|1Y|5Y|MAX adds history
+python3 "$FN2" fred DGS10                    # a FRED macro series; `fred` alone lists them
+python3 "$FN2" recall "holdings"             # notes the user's FN2 agents saved
+```
+
+Hints in the output say `fn2 …`; run them as `python3 "$FN2" …`.
+
+**Use an agent instead** (`start "…" --wait`, below) when the answer needs
+news, web pages, filing text or prediction markets, synthesis across many
+companies, or a schedule. Direct reads cover exactly the datasets above.
+
+### Recipe: "summarize X's most recent earnings report and call"
+
+1. `earnings NFLX`. Row `[1]` is the newest quarter FN2 holds: fiscal
+   quarter, report date, EPS and revenue against consensus, and that call's
+   transcript id. If the output opens with `POSSIBLY STALE`, relay that
+   warning; do not present the row as the latest quarter without it.
+2. `transcript NFLX --id <id from row [1]>`. Read the whole call: run the
+   printed `next page:` command until it prints `end of call`. Forward
+   guidance and what management said (ads, pricing, engagement, content
+   spend, buybacks) come from here. A row with no call means FN2 holds no
+   transcript for that report: say so.
+3. `financials NFLX --quarterly`. Take operating margin and other filed
+   figures from the column whose `period end` equals the quarter end in
+   step 1. No such column (the 10-Q is not filed yet, or it is a fiscal Q4)
+   means the filed figure is not available: say so, and report any margin
+   management stated on the call as management's statement.
+4. Guidance given earlier for this quarter:
+   `search "guidance outlook operating margin" --call <id from row [2]>`
+   (the previous quarter's call). Each hit says `matched your words` or
+   `matched by meaning only`. A meaning-only hit is just the nearest passage,
+   returned even when the call never raised the topic: read it before citing
+   it.
+
+Rules for the answer:
+
+- State the fiscal quarter and the report date exactly as `earnings` printed
+  them.
+- "Consensus" is analyst consensus from FN2's data vendor. Say so, and never
+  call it company guidance.
+- Quote or paraphrase only text a command returned, attributed to its speaker.
+  Add no figure, quote, or guidance from memory.
+- When something asked for is not in the output (company guidance, consensus
+  for a metric, a transcript, a margin), say FN2's data does not have it
+  instead of filling it in.
+- "The call does not discuss it" is a real answer. Some topics (buybacks, for
+  one) are often in the shareholder letter or a filing, which the direct data
+  does not hold. Say that, and offer an agent run, which can search filings
+  and news.
+
+**Access and limits.** These commands need the `research` scope. If one fails
+with `Missing scope: research`, the user signed in before research reads
+existed: run the two-step sign-in above again, then retry the command. Do not
+give up, and do not switch to an agent without saying why. Each successful
+read counts against a weekly research allowance (`whoami` shows it; a typical
+call is two transcript pages). On `api_quota_exceeded`, relay the message as
+written and stop: a retry cannot succeed before the reset. Flags, output
+fields, more recipes, and caveats:
+[references/research.md](references/research.md).
+
+## Agents: command cheatsheet
 
 Agent arguments accept an **id, an id prefix (the 8 characters `agents`
 prints), or a name**; ambiguity is refused, never guessed.
 
 ```bash
-python3 "$FN2" start "What did NVDA say about demand last call?" --wait   # ask and get the answer
+python3 "$FN2" start "What changed in TSLA's latest 10-Q, and why?" --wait  # ask and get the answer
 python3 "$FN2" start "Summarize overnight moves in NVDA and peers"        # run once, now
 python3 "$FN2" start "Pre-market brief on my watchlist" \
     --when "before market open"                                          # 30 min before each open (trading days only)
@@ -153,7 +235,8 @@ python3 "$FN2" link                       # put an `fn2` launcher on the user's 
 
 **One-off questions.** A prompt with no `--when` runs immediately. Use `--wait`
 so the answer comes back in the same command instead of making the user ask
-twice; it long-polls the API and honours `--timeout` (default 300s).
+twice; it long-polls the API and honours `--timeout` (default 300s). If a
+direct research command can answer the question, use that instead.
 
 **If the user wants to run `fn2` themselves**, offer `python3 "$FN2" link`.
 Installing the plugin puts nothing on `PATH`, so `fn2` alone is
@@ -187,8 +270,9 @@ variable **`FN2_API_TOKEN`** (accepts a device token `fn2d_…` or an API key
 alias. There is no `.env` support.
 
 A manual API key still works as a fallback: create one in the FN2 AI web app
-(**Preferences → Developer**, needs the `agents` scope) and run
-`fn2 login --token fn2_…`. Prefer `fn2 auth login` everywhere else.
+(**Preferences → Developer**, needs the `agents` scope, plus `research` for
+the direct research commands) and run `fn2 login --token fn2_…`. Prefer
+`fn2 auth login` everywhere else.
 
 ## Safety
 
@@ -198,12 +282,13 @@ A manual API key still works as a fallback: create one in the FN2 AI web app
   never sent anywhere else.
 - `delete` is irreversible (removes the agent and its history). Confirm the
   agent id with `status` first; pass `--yes` only when the user is explicit.
-- Prefer read-only verbs (`agents`, `status`, `runs`, `result`) before creating
-  or destroying anything.
+- Prefer read-only verbs (the research commands, `agents`, `status`, `runs`,
+  `result`) before creating or destroying anything.
 
 ## References
 
 - [examples/README.md](examples/README.md): previewable, source-disciplined earnings, reconciliation, and bounded watchlist workflows; execution is opt-in.
+- [references/research.md](references/research.md): the direct research commands, their output, recipes, and data caveats.
 - [references/api.md](references/api.md): the endpoint contract this skill maps to.
 - [references/scheduling.md](references/scheduling.md): cadence phrases and calendar caveats.
 - [references/troubleshooting.md](references/troubleshooting.md): auth, storage, quota, and network errors.

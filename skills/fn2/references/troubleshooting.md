@@ -43,9 +43,39 @@ Keychain → `~/.config/fn2/credentials.json`. There is no `.env` support.
   still succeeds seconds after revoking elsewhere can be that propagation
   window, not a bug.
 - 403 on a specific route usually means the credential lacks that scope
-  (`models` for `fn2 models`). `fn2 permissions` shows what is granted.
+  (`models` for `fn2 models`, `research` for the research commands; see the
+  next section). `fn2 permissions` shows what is granted.
 - For a manual API key, create a fresh one in the web app and
   `fn2 login --token …` again.
+
+## "Missing scope: research"
+
+```text
+error: HTTP 403: Missing scope: research
+this sign-in does not carry the `research` scope (it has: agents, models). …
+```
+
+The research commands (`earnings`, `calls`, `transcript`, `search`,
+`financials`, `price`, `fred`, `recall`) need the `research` scope. Sign-ins
+made before 0.8.0 asked only for `agents` and `models`, and a credential never
+gains a scope after it is issued. Nothing is wrong with the account.
+
+- **Signed in through the browser** (the usual case): sign in again.
+  `fn2 auth login --no-wait` prints a code and URL, the user approves it at
+  fn2.ai/start, and `fn2 auth login` finishes. Agents, schedules, and results
+  are untouched. Assistants: use the two-step flow in SKILL.md, then re-run
+  the command that failed.
+- **`FN2_API_TOKEN` / `FN2_API_KEY` is set**: signing in cannot change an
+  environment variable. Replace its value with a credential that has
+  `research`, or unset it and run `fn2 auth login`.
+- **A manual API key**: its scopes were chosen when it was created. Create a
+  key with `research` under Preferences → Developer, or switch to
+  `fn2 auth login`.
+
+`fn2 permissions` lists `research` under "not granted yet" until this is done;
+`fn2 auth status` shows the same on its `research` line. After the new sign-in
+the previous device stays listed under Preferences → Developer → Connected
+Devices until it expires; revoke it there if you want it gone sooner.
 
 ## The browser never opened during `auth login`
 
@@ -105,9 +135,39 @@ CI without a session), unlock it or use `FN2_API_TOKEN`.
 
 ## HTTP 429 (quota)
 
-The account is over its token budget. `fn2 whoami` shows `used / limit /
-remaining` and the reset time. Upgrade the plan or wait for the reset; creating
-or running agents is blocked until then.
+Two separate meters, both shown by `fn2 whoami`:
+
+- **Tokens** (monthly; agents). The account is over its token budget. `whoami`
+  shows `used / limit / remaining` and the reset time. Upgrade the plan or
+  wait for the reset; creating or running agents is blocked until then.
+- **Research requests** (weekly; the research commands). The error is one
+  sentence from FN2, printed as sent:
+
+  ```text
+  error: The Free plan includes 25 FN2 research requests per week, and you've used all 25. Your quota resets on Monday, 16 November (UTC). Upgrade at https://fn2.ai/preferences#billing for a higher weekly limit.
+  ```
+
+  Its code is `api_quota_exceeded`. Relay that sentence as written and do not
+  retry: the number does not change before the reset. Agents are unaffected,
+  so `fn2 start "…" --wait` still works for the same question. Only successful
+  reads are counted; a `404` or `503` costs nothing.
+
+## A research command says FN2 has no data (HTTP 404)
+
+`FN2 has no earnings results…`, `FN2 holds no earnings-call transcripts…`,
+`No SEC-derived financials…`, `No market data for symbol…`: FN2 does not cover
+that symbol, period, or series. It is an answer, not an outage, and retrying
+will not change it. Check the ticker; `fn2 calls SYMBOL` shows which calls are
+held; financials cover US filers with XBRL statements. An agent run
+(`fn2 start`) can look further afield.
+
+## A research command's output was cut off
+
+Terminal assistants cut a command's output near 30,000 characters. The research
+views fit under that by default (a transcript page is 24,000 characters), and
+when one does not, its first line says so. Ask for less (`--limit`, a smaller
+`--max-chars`), or page a transcript with the `next page:` command it prints
+rather than raising `--max-chars`. `--json > file` keeps everything.
 
 ## "could not reach https://fn2.ai"
 
