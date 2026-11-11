@@ -258,6 +258,50 @@ def _run_device_flow(client: Client, flow: Dict[str, Any],
         raise SystemExit(130)
 
 
+# A new sign-in replaces the credential stored on this machine. The one it
+# replaces would otherwise stay active on FN2 AI until it expired: listed as a
+# connected device, counted toward the account's device cap, and usable by
+# nobody. Revoking it is best effort and bounded, because the sign-in itself
+# has already succeeded by the time it is tried.
+_REVOKE_TIMEOUT_SECONDS = 10
+
+
+def _stored_device_token(base_url: str) -> Optional[str]:
+    """The device token stored on this machine for `base_url`, if there is one.
+
+    Read BEFORE a new sign-in is stored. Only a stored `fn2d_` token for the
+    same endpoint qualifies: a credential from the environment is not this
+    command's to revoke, an API key cannot be revoked through the device
+    route, and a token issued by another endpoint must never be sent here.
+    """
+    try:
+        token, source = storage.stored_token(base_url)
+        record = storage.load_record()
+    except storage.StorageError:
+        return None
+    if not token or not token.startswith(config.DEVICE_TOKEN_PREFIX):
+        return None
+    # The Keychain entry is keyed by host. The file holds one credential for
+    # whichever endpoint it was issued by, so that endpoint has to match.
+    if source != "keychain" and \
+            str(record.get("base_url") or "").rstrip("/") != base_url.rstrip("/"):
+        return None
+    return token
+
+
+def _revoke_superseded(base_url: str, old_token: str) -> str:
+    """Revoke a replaced device credential. -> revoked | already_inactive |
+    revoke_failed. Never raises: the new sign-in is already stored."""
+    try:
+        deviceauth.logout(Client(base_url, old_token,
+                                 timeout=_REVOKE_TIMEOUT_SECONDS))
+        return "revoked"
+    except AuthError:
+        return "already_inactive"  # expired or revoked already: same end state
+    except Exception:
+        return "revoke_failed"
+
+
 def cmd_auth_login(args: argparse.Namespace) -> int:
     settings = _settings(args)
     json_mode = getattr(args, "json", False)
@@ -303,6 +347,9 @@ def cmd_auth_login(args: argparse.Namespace) -> int:
         token = str(outcome.get("access_token") or "")
         account = outcome.get("account") if isinstance(outcome.get("account"), dict) else {}
         scopes = outcome.get("scopes") or list(deviceauth.DEFAULT_SCOPES)
+        previous = _stored_device_token(settings.base_url)
+        if previous == token:
+            previous = None
         backend = storage.store_credential(
             token, base_url=settings.base_url, kind="device",
             extra={
@@ -323,6 +370,9 @@ def cmd_auth_login(args: argparse.Namespace) -> int:
                 "expires_at": outcome.get("expires_at"),
                 "storage": backend,
                 "credential": config.mask(token),
+                # null: this sign-in replaced no stored device credential.
+                "superseded_device": (_revoke_superseded(settings.base_url, previous)
+                                      if previous else None),
             })
         else:
             print(f"\n{style.tick()} signed in as {style.paint(identity, 'bold')}")
@@ -330,6 +380,15 @@ def cmd_auth_login(args: argparse.Namespace) -> int:
                   f"{storage.describe_backend(backend)}")
             print(f"  scopes: {', '.join(scopes)}   expires: {render.fmt_ts(outcome.get('expires_at'))}")
             print(style.label(f"  {_REVOKE_POINTER}"))
+            # After the lines above, so a slow revoke never hides the success.
+            result = _revoke_superseded(settings.base_url, previous) if previous else None
+            if result == "revoked":
+                print(f"  replaced this machine's previous sign-in: its "
+                      f"credential {config.mask(previous)} was revoked on FN2 AI.")
+            elif result == "revoke_failed":
+                print(f"  note: could not revoke the previous sign-in "
+                      f"({config.mask(previous)}); remove it at fn2.ai > "
+                      "Preferences > Developer > Connected Devices.")
         return 0
 
     storage.clear_pending()

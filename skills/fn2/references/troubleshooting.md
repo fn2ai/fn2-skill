@@ -73,9 +73,15 @@ gains a scope after it is issued. Nothing is wrong with the account.
   `fn2 auth login`.
 
 `fn2 permissions` lists `research` under "not granted yet" until this is done;
-`fn2 auth status` shows the same on its `research` line. After the new sign-in
-the previous device stays listed under Preferences → Developer → Connected
-Devices until it expires; revoke it there if you want it gone sooner.
+`fn2 auth status` shows the same on its `research` line.
+
+The new sign-in revokes the stored device credential it replaces, so the old
+device does not linger under Preferences → Developer → Connected Devices. That
+clean-up is best effort and never blocks the sign-in: if FN2 AI could not be
+reached for it, the CLI says so in one line, and the old device can be revoked
+from that page. An account already at its limit of 10 connected devices has to
+revoke one there first, because the new device is created before the old one
+is removed.
 
 ## The browser never opened during `auth login`
 

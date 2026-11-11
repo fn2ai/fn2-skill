@@ -53,16 +53,21 @@ class Client:
     api_key:
         A ``fn2_...`` key. Optional so public endpoints (none today, but the
         auth routes exist) can be reached without one.
+    timeout:
+        Seconds to wait on one request. The default suits research and agent
+        calls; a best-effort side request can ask for less.
     """
 
-    def __init__(self, base_url: str, api_key: Optional[str] = None):
+    def __init__(self, base_url: str, api_key: Optional[str] = None,
+                 timeout: float = _TIMEOUT_SECONDS):
         self.base_url = base_url.rstrip("/")
         self.api_key = api_key
+        self.timeout = timeout
 
     # -- transport -------------------------------------------------------
     def _urlopen(self, request: urllib.request.Request):
         # Seam for tests; never call urllib elsewhere.
-        return urllib.request.urlopen(request, timeout=_TIMEOUT_SECONDS)
+        return urllib.request.urlopen(request, timeout=self.timeout)
 
     def request(self, method: str, path: str, *, body: Optional[dict] = None,
                 auth: bool = True, params: Optional[dict] = None) -> Any:

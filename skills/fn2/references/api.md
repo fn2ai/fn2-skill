@@ -73,7 +73,10 @@ CLI treats that as success. Devices can also be revoked in the web app under
 revocation takes effect within a few minutes everywhere.
 
 Device credentials expire after 90 days; renewal is simply `fn2 auth login`
-again. Accounts are capped at 10 active devices.
+again. Accounts are capped at 10 active devices. When a sign-in replaces a
+device token already stored on the machine for the same endpoint, the CLI
+calls `logout` with the old token afterwards (best effort) so the replaced
+device does not stay active.
 
 ## Agents
 

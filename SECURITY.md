@@ -42,6 +42,11 @@ fn2 auth logout --revoke
 Or revoke it in the FN2 AI web app under **Preferences → Developer → Connected
 Devices**. Revocation takes effect within a few minutes everywhere.
 
+Signing in again on a machine that already holds a device credential revokes
+the one being replaced, so a superseded credential does not stay active. The
+old token is sent only to the endpoint that issued it, and a failure to revoke
+never blocks the new sign-in.
+
 ## Supported versions
 
 The latest release on `main` is supported. Fixes ship forward; there are no

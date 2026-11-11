@@ -32,6 +32,11 @@ user-visible surface.
 - **`fn2 auth login` requests the `research` scope.** `fn2 permissions`,
   `fn2 auth status` and `fn2 whoami` show whether a credential has it, and
   `whoami` shows the weekly research allowance beside the token quota.
+- **Signing in again cleans up after itself.** A new `fn2 auth login` revokes
+  the stored device credential it replaces, instead of leaving it active (and
+  counted toward the 10-device limit) until it expires. Best effort: it runs
+  after the new credential is stored, on a short timeout, and never fails the
+  sign-in. An environment credential or an API key is never touched.
 - `SKILL.md` teaches assistants when to read directly and when to run an
   agent, with a recipe for an earnings summary and the rules for reporting it
   honestly. `references/research.md` documents the commands, their output, and

@@ -218,7 +218,8 @@ that the date is a scheduled estimate.
   it since 0.8.0. A sign-in made earlier fails with
   `HTTP 403: Missing scope: research`, and the CLI prints the fix: sign in
   again (`fn2 auth login --no-wait`, approve the code, `fn2 auth login`). The
-  account, agents, and schedules are untouched. `fn2 permissions` and
+  account, agents, and schedules are untouched, and the credential the new
+  sign-in replaces is revoked. `fn2 permissions` and
   `fn2 auth status` show whether the scope is present. A credential supplied
   through `FN2_API_TOKEN`, or a manual API key, has to be replaced by one
   created with `research`.

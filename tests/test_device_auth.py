@@ -458,6 +458,182 @@ class AuthLoginCliTests(_EnvSandbox):
 
 
 # ---------------------------------------------------------------------------
+# CLI: a new sign-in revokes the stored device credential it replaces
+# ---------------------------------------------------------------------------
+OLD_TOKEN = "fn2d_" + "D" * 36 + "old1"
+
+
+class SupersededDeviceTests(_EnvSandbox):
+    """Signing in again (to add the research scope, or after a year) must not
+    leave the replaced credential active on FN2 AI, and must never be failed or
+    held up by the clean-up."""
+
+    def _seed(self, token=OLD_TOKEN, kind="device", base_url="https://fn2.ai"):
+        storage.store_credential(token, base_url=base_url, kind=kind,
+                                 extra={"scopes": ["agents", "models"]})
+
+    def _login(self, *argv, logout=None, approved=None):
+        """Run `auth login`; -> (rc, output, the clients logout was called with)."""
+        revoked = []
+
+        def fake_logout(client):
+            # The new credential is already stored when the old one is revoked.
+            revoked.append((client.base_url, client.api_key, client.timeout,
+                            storage.stored_token("https://fn2.ai")[0]))
+            if logout is not None:
+                raise logout
+            return {"revoked": True}
+
+        with mock.patch.object(deviceauth, "start", return_value=dict(START_RESPONSE)), \
+             mock.patch.object(deviceauth, "poll_until_complete",
+                               return_value=dict(approved or APPROVED)), \
+             mock.patch.object(deviceauth, "logout", side_effect=fake_logout):
+            rc, out, err = _run_cli(["auth", "login", "--no-browser", *argv])
+        self.assertNotIn(OLD_TOKEN, out + err)
+        self.assertNotIn(TOKEN, out + err)
+        self.stdout = out  # --json prints the document here, prose on stderr
+        return rc, out + err, revoked
+
+    def test_relogin_revokes_the_stored_device_token_it_replaces(self):
+        self._seed()
+        rc, blob, revoked = self._login()
+        self.assertEqual(rc, 0)
+        # Exactly one revoke, of the OLD token, at the same endpoint, after
+        # the new credential was stored, on a short timeout.
+        self.assertEqual(revoked, [("https://fn2.ai", OLD_TOKEN,
+                                    cli._REVOKE_TIMEOUT_SECONDS, TOKEN)])
+        self.assertLess(cli._REVOKE_TIMEOUT_SECONDS, 45)
+        self.assertEqual(blob.count("previous sign-in"), 1)
+        self.assertIn("its credential fn2d_…old1 was revoked on FN2 AI", blob)
+        self.assertLess(blob.index("signed in as"), blob.index("previous sign-in"))
+        self.assertEqual(storage.stored_token("https://fn2.ai")[0], TOKEN)
+
+    def test_json_reports_the_revoke_without_leaking_either_token(self):
+        self._seed()
+        rc, blob, revoked = self._login("--json")
+        self.assertEqual(rc, 0)
+        payload = json.loads(self.stdout)
+        self.assertEqual(payload["superseded_device"], "revoked")
+        self.assertEqual(payload["credential"], "fn2d_…wxyz")
+        self.assertEqual(len(revoked), 1)
+
+    def test_first_sign_in_has_nothing_to_revoke(self):
+        rc, blob, revoked = self._login()
+        self.assertEqual(rc, 0)
+        self.assertEqual(revoked, [])
+        self.assertNotIn("previous sign-in", blob)
+        rc, blob, revoked = self._login("--json")  # now replaces TOKEN with TOKEN
+        self.assertEqual(revoked, [])              # the same token is not revoked
+        self.assertIsNone(json.loads(self.stdout)["superseded_device"])
+
+    def test_an_environment_credential_is_never_revoked(self):
+        os.environ["FN2_API_TOKEN"] = OLD_TOKEN
+        rc, blob, revoked = self._login()
+        self.assertEqual(rc, 0)
+        self.assertEqual(revoked, [])
+        # With one in the environment AND one stored, only the stored one goes.
+        stored_old = "fn2d_" + "E" * 36 + "sto2"
+        storage.clear_credential("https://fn2.ai")
+        self._seed(token=stored_old)
+        rc, blob, revoked = self._login()
+        self.assertEqual([r[1] for r in revoked], [stored_old])
+        self.assertNotIn(stored_old, blob)
+
+    def test_a_stored_api_key_is_not_sent_to_the_device_route(self):
+        self._seed(token=APIKEY, kind="api_key")
+        rc, blob, revoked = self._login()
+        self.assertEqual(rc, 0)
+        self.assertEqual(revoked, [])
+        self.assertNotIn("previous sign-in", blob)
+        self.assertNotIn(APIKEY, blob)
+
+    def test_a_token_stored_for_another_endpoint_is_left_alone(self):
+        # The file holds a test.fn2.ai credential; this sign-in is to fn2.ai.
+        # Sending that token here would hand one deployment's credential to
+        # another.
+        self._seed(base_url="https://test.fn2.ai")
+        os.environ["FN2_BASE_URL"] = "https://fn2.ai"
+        rc, blob, revoked = self._login()
+        self.assertEqual(rc, 0)
+        self.assertEqual(revoked, [])
+
+    def test_keychain_stored_token_is_revoked_too(self):
+        vault = {"fn2.ai": OLD_TOKEN}
+        with mock.patch.object(storage, "keychain_available", return_value=True), \
+             mock.patch.object(storage, "keychain_read", side_effect=vault.get), \
+             mock.patch.object(storage, "keychain_store",
+                               side_effect=vault.__setitem__):
+            storage.save_record({"kind": "device", "base_url": "https://fn2.ai",
+                                 "storage": "keychain"})
+            rc, blob, revoked = self._login()
+        self.assertEqual(rc, 0)
+        self.assertEqual([r[1] for r in revoked], [OLD_TOKEN])
+        self.assertEqual(vault["fn2.ai"], TOKEN)
+
+    def test_a_failing_revoke_never_fails_the_sign_in(self):
+        failures = (
+            (ApiError("could not reach https://fn2.ai", code="network"), True),
+            (ApiError("upstream", status=503), True),
+            (TimeoutError("timed out"), True),          # not an ApiError at all
+            (AuthError("revoked", status=401), False),  # already dead: silent
+        )
+        for failure, noted in failures:
+            with self.subTest(failure=repr(failure)):
+                storage.clear_credential("https://fn2.ai")
+                self._seed()
+                rc, blob, revoked = self._login(logout=failure)
+                self.assertEqual(rc, 0)
+                self.assertEqual(len(revoked), 1)
+                self.assertIn("signed in as", blob)
+                self.assertEqual(storage.stored_token("https://fn2.ai")[0], TOKEN)
+                self.assertNotIn("was revoked on FN2 AI", blob)
+                self.assertEqual("could not revoke the previous sign-in" in blob,
+                                 noted)
+                if noted:
+                    self.assertIn("Connected Devices", blob)
+        storage.clear_credential("https://fn2.ai")
+        self._seed()
+        rc, blob, _ = self._login("--json", logout=ApiError("x", code="network"))
+        self.assertEqual(rc, 0)
+        self.assertEqual(json.loads(self.stdout)["superseded_device"],
+                         "revoke_failed")
+
+    def test_a_denied_or_expired_sign_in_revokes_nothing(self):
+        self._seed()
+        for status in ("denied", "expired"):
+            rc, blob, revoked = self._login(approved={"status": status})
+            self.assertEqual(rc, 1)
+            self.assertEqual(revoked, [])
+            self.assertEqual(storage.stored_token("https://fn2.ai")[0], OLD_TOKEN)
+
+    def test_the_revoke_request_is_the_device_logout_with_the_old_bearer(self):
+        """End to end through the HTTP seam: one POST, old token as bearer."""
+        self._seed()
+        sent = []
+
+        class _Ok(io.BytesIO):
+            def getcode(self):
+                return 200
+
+        def transport(client, request):
+            sent.append((request.method, request.full_url,
+                         request.get_header("Authorization"), client.timeout))
+            return _Ok(b'{"revoked": true}')
+
+        with mock.patch.object(deviceauth, "start", return_value=dict(START_RESPONSE)), \
+             mock.patch.object(deviceauth, "poll_until_complete",
+                               return_value=dict(APPROVED)), \
+             mock.patch.object(Client, "_urlopen", new=transport):
+            rc, out, err = _run_cli(["auth", "login", "--no-browser"])
+        self.assertEqual(rc, 0)
+        self.assertEqual(sent, [("POST",
+                                 "https://fn2.ai/api/v1/skill/device-auth/logout",
+                                 "Bearer " + OLD_TOKEN,
+                                 cli._REVOKE_TIMEOUT_SECONDS)])
+        self.assertNotIn(OLD_TOKEN, out + err)
+
+
+# ---------------------------------------------------------------------------
 # CLI: auth login --no-wait (two-phase flow for assistants)
 # ---------------------------------------------------------------------------
 class AuthLoginNoWaitTests(_EnvSandbox):
