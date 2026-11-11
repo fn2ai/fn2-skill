@@ -16,7 +16,11 @@ concurrency:
 jobs:
   test:
     name: tests · python ${{ matrix.python }}
-    runs-on: ubuntu-latest
+    # ubuntu-latest became Ubuntu 26.04 on 2026-10-19, and setup-python has no
+    # 3.9 build for it, so the floor version failed at setup on every push
+    # since. 3.9 stays the advertised floor, so it stays tested: on the last
+    # runner image that still carries it.
+    runs-on: ${{ matrix.python == '3.9' && 'ubuntu-24.04' || 'ubuntu-latest' }}
     strategy:
       fail-fast: false
       matrix:
