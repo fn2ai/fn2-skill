@@ -1,4 +1,5 @@
-"""fn2cli — a dependency-free client for the fn2.ai public agents API.
+"""fn2cli — a dependency-free client for the fn2.ai public API: direct
+research reads (earnings, transcripts, financials, prices) and research agents.
 
 The package is intentionally split into single-responsibility modules so the
 skill stays easy to audit:
@@ -7,7 +8,8 @@ skill stays easy to audit:
     storage    macOS Keychain / owner-only file backends + pending-login state
     deviceauth the browser device-authorization flow (start / poll / logout)
     client     the thin urllib HTTP layer and error types
-    api        one function per fn2 endpoint, no formatting
+    api        one function per fn2 endpoint (agents, runs, account,
+               research), no formatting
     schedule   natural-language cadence -> fn2 schedule object
     render     human/JSON output helpers
     cli        argument parsing and command dispatch
@@ -17,6 +19,6 @@ Nothing here imports anything outside the Python standard library.
 
 from __future__ import annotations
 
-__version__ = "0.7.0"
+__version__ = "0.8.0"
 
 __all__ = ["__version__"]

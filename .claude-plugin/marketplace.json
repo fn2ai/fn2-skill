@@ -3,7 +3,7 @@
   "owner": {
     "name": "fn2"
   },
-  "description": "FN2 AI research-agent integrations for terminal assistants.",
+  "description": "FN2 AI market research and research-agent integrations for terminal assistants.",
   "plugins": [
     {
       "name": "fn2",
@@ -11,9 +11,9 @@
         "source": "github",
         "repo": "fn2ai/fn2-skill"
       },
-      "description": "Start, monitor, and schedule FN2 AI market research agents.",
+      "description": "Read earnings, call transcripts, financials and prices from FN2 AI, and start, monitor, and schedule its market research agents.",
       "category": "Productivity",
-      "tags": ["markets", "research", "agents", "scheduling"]
+      "tags": ["markets", "research", "earnings", "agents", "scheduling"]
     }
   ]
 }

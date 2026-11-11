@@ -13,7 +13,7 @@
 
 **Ask [FN2 AI](https://fn2.ai) anything about public markets, then put the good questions on a schedule. From your terminal.**
 
-[Get started](#get-started) · [Research cookbook](#research-cookbook) · [Run it yourself](#running-it-yourself) · [In use](#in-use) · [Commands](#commands) · [Scheduling](#scheduling-in-everyday-words) · [Security](#security-and-configuration)
+[Get started](#get-started) · [Direct research](#research-without-an-agent) · [Research cookbook](#research-cookbook) · [Run it yourself](#running-it-yourself) · [In use](#in-use) · [Commands](#commands) · [Scheduling](#scheduling-in-everyday-words) · [Security](#security-and-configuration)
 
 </div>
 
@@ -82,11 +82,13 @@ codex plugin add fn2@fn2
 FN2 AI runs autonomous research agents on public markets: earnings-call
 transcripts, prices and volume, SEC filings, FRED macro series, prediction
 markets, and the news around them. This skill hands that to your assistant, so
-**Claude Code, OpenAI Codex, or Pi** can launch an agent, read what it found,
+**Claude Code, OpenAI Codex, or Pi** can read FN2's data directly for a
+factual question, or launch an agent for the deeper ones, read what it found,
 and put it on a cadence.
 
 Things worth asking:
 
+- **The latest earnings.** *"Summarize Netflix's most recent earnings report and call."* Reported EPS and revenue against analyst consensus, the quarter and report date, and what management said, read straight from FN2's data in seconds.
 - **Earnings calls.** *"What did NVIDIA say about data-center demand on the last call?"* Answered with the executives' own words.
 - **Price action.** *"How is NVDA trading today, and what moved it?"*
 - **Standing watches.** *"Notify me when AAPL drops more than 5% in a day."*
@@ -162,6 +164,35 @@ Output is colourised when it is going to a terminal and plain everywhere else.
 `--color never` and `NO_COLOR` both turn it off; `--json` is never colourised.
 On a console that cannot encode `✓`, the glyphs fall back to ASCII instead of
 raising `UnicodeEncodeError`.
+
+## Research without an agent
+
+A factual question about one company or one data series does not need an agent
+run. Eight read-only commands fetch FN2's data directly, one request each:
+
+```bash
+fn2 earnings NFLX                  # reported quarters vs analyst consensus, report dates, the next report
+fn2 calls NFLX                     # the earnings calls FN2 holds text for
+fn2 transcript NFLX                # read the most recent call, in speaker order, a page at a time
+fn2 search "ad tier" --symbol NFLX # what executives said, across calls or inside one (--call ID)
+fn2 financials NFLX --quarterly    # revenue, margins, cash flow, debt from SEC filings
+fn2 price NFLX --range 1M          # quote, plus price history
+fn2 fred DGS10                     # a FRED macro series (fred alone lists them)
+fn2 recall "holdings"              # notes your FN2 agents saved on your account
+```
+
+Your assistant chains them: `earnings` names the quarter, the report date and
+that call's transcript id; `transcript` reads the call; `financials` supplies
+the filed margins. The output is built to be quoted accurately: exact figures,
+ISO dates, an explicit "not available" wherever FN2 has no data, and consensus
+labelled as analyst consensus rather than company guidance. Company guidance
+itself comes from the call text, when management gave it.
+
+These commands use the `research` scope and a weekly request allowance that is
+separate from your token quota (`fn2 whoami` shows both). If you connected
+before 0.8.0, run `fn2 auth login` once more to add the scope; your agents and
+schedules are untouched. Details:
+[skills/fn2/references/research.md](skills/fn2/references/research.md).
 
 ## Research cookbook
 
@@ -267,6 +298,12 @@ Any command that takes an agent takes an **id, an id prefix, or a name**.
 | `doctor` | diagnose config, storage, and connectivity |
 | `login --token` / `whoami` | manual API-key fallback / show plan + quota |
 | `models` | list models available to your account |
+| `earnings <symbol>` | reported quarters vs analyst consensus, report dates, the next report |
+| `calls <symbol>` / `transcript <symbol> [--id …]` | list the earnings calls held / read one, a page at a time |
+| `search "<query>" [--symbol …] [--call …]` | search earnings-call text for what executives said |
+| `financials <symbol> [--quarterly\|--ttm]` | income, margin, cash-flow and debt figures from SEC filings |
+| `price <symbol> [--range 1M]` | current quote, plus price history |
+| `fred [<series>]` / `recall [<query>]` | a FRED macro series / notes your agents saved |
 | `start "<prompt>" [--when …] [--wait]` | create an agent: runs now, or on a schedule |
 | `agents` (`ls`) | list your agents |
 | `status [<id>]` | overview, or one agent's detail + recent runs |
@@ -318,6 +355,10 @@ Hard safety rails:
   (`FN2_ALLOW_DEV_BASE=1` exists for local development only and warns loudly).
 - **Redaction.** The credential appears only as a masked `fn2d_…wxyz` form in
   all output, including `--json` and error text.
+- **Scopes.** The device credential carries `agents`, `models`, and
+  `research` (read-only: market data and the notes your own agents saved),
+  and nothing else: no billing, no chat, no web session. `fn2 permissions`
+  lists them.
 - **Revocation.** Revoke any connected device in the FN2 AI web app under
   **Preferences → Developer → Connected Devices** (or `fn2 auth logout
   --revoke`); it takes effect within a few minutes everywhere.
@@ -340,9 +381,10 @@ skills/fn2/scripts/fn2cli/
   cli.py               → argument parsing + dispatch
 ```
 
-It talks only to the documented public API (`/api/v1/agents`, `/runs`, `/usage`,
-`/models`, `/skill/device-auth/*`) with your scoped credential. No admin access,
-no scraping. See [skills/fn2/references/api.md](skills/fn2/references/api.md).
+It talks only to the documented public API (`/api/v1/agents`, `/runs`,
+`/research/*`, `/usage`, `/models`, `/skill/device-auth/*`) with your scoped
+credential. No admin access, no scraping. See
+[skills/fn2/references/api.md](skills/fn2/references/api.md).
 
 ## Development
 

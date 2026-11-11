@@ -5,6 +5,54 @@ Notable changes to the FN2 AI skill. The format follows
 [semantic versioning](https://semver.org/spec/v2.0.0.html) on the CLI's
 user-visible surface.
 
+## [0.8.0] - 2026-11-11
+
+### Added
+
+- **Direct research reads.** Eight read-only commands fetch FN2 AI's data
+  without starting an agent, one request each: `earnings` (reported quarters
+  against analyst consensus, report dates, the next report), `calls` and
+  `transcript` (the earnings calls FN2 holds, and one call's text a page at a
+  time), `search` (what executives said, across calls or inside one with
+  `--call`), `financials` (SEC-filing figures, now including operating income
+  and operating margin), `price`, `fred`, and `recall`. "Summarize Netflix's
+  most recent earnings report and call" is now a handful of reads instead of an
+  agent run. Every command takes `--json`.
+- **Output written to be quoted accurately.** Exact figures (never `12.87B`),
+  ISO dates, full transcript ids, and an explicit "not available" wherever FN2
+  has no data. `earnings` labels consensus as analyst consensus rather than
+  company guidance, never guesses a before/after-market session, marks the next
+  report date as an estimate, and opens with `POSSIBLY STALE` when the newest
+  result FN2 holds is old. `transcript` prints the exact `next page:` command
+  above and below the text. `search` marks every hit `matched your words` or
+  `matched by meaning only`, and cautions when no hit contains the query
+  words, so the nearest passage is not mistaken for a quote on a topic the
+  call never raised. A view too long for a terminal assistant's output limit
+  says so on its first line instead of being cut silently.
+- **`fn2 auth login` requests the `research` scope.** `fn2 permissions`,
+  `fn2 auth status` and `fn2 whoami` show whether a credential has it, and
+  `whoami` shows the weekly research allowance beside the token quota.
+- `SKILL.md` teaches assistants when to read directly and when to run an
+  agent, with a recipe for an earnings summary and the rules for reporting it
+  honestly. `references/research.md` documents the commands, their output, and
+  the data's limits.
+
+### Changed
+
+- **Signed in before 0.8.0? Run `fn2 auth login` once more.** Older sign-ins
+  carry `agents` and `models` only, so the research commands answer
+  `Missing scope: research`. The CLI now explains that and prints the commands
+  to fix it, per credential type, instead of the generic "may be revoked or
+  out of scope". Agents, schedules, and results are untouched.
+- A used-up weekly research allowance (`api_quota_exceeded`) prints FN2's own
+  sentence, with the plan, limit, reset date and upgrade link, exactly as sent,
+  and says not to retry.
+- `fn2 permissions` no longer lists default scopes for a manual API key whose
+  scopes it cannot see; it shows the two an agent credential must have and
+  says the rest is set at key creation.
+- Piped output escapes characters the terminal's code page cannot encode
+  instead of aborting part-way through a transcript.
+
 ## [0.7.0] - 2026-11-06
 
 ### Added

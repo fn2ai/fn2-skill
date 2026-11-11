@@ -29,9 +29,11 @@ vulnerability, not a bug report.
 
 ## Revoking access
 
-A device credential is scoped (`agents`, `models`) and revocable. It cannot
-read or change billing, email, or password; cannot open a web session or read
-your chats; and cannot approve new devices or create API keys.
+A device credential is scoped and revocable. Its scopes are `agents`,
+`models`, and `research` (read-only: FN2's market data and the notes your own
+agents saved). It cannot read or change billing, email, or password; cannot
+open a web session or read your chats; and cannot approve new devices or
+create API keys.
 
 ```bash
 fn2 auth logout --revoke

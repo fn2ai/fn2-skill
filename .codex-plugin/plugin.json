@@ -1,7 +1,7 @@
 {
   "name": "fn2",
-  "version": "0.7.0",
-  "description": "Start, monitor, and schedule FN2 AI autonomous research agents for public markets from your terminal assistant.",
+  "version": "0.8.0",
+  "description": "Answer public-markets questions with FN2 AI data, read directly (earnings vs consensus, earnings-call transcripts, SEC financials, prices, FRED), and start, monitor, and schedule FN2 AI autonomous research agents from your terminal assistant.",
   "author": {
     "name": "fn2",
     "url": "https://fn2.ai"
@@ -9,12 +9,12 @@
   "homepage": "https://fn2.ai",
   "repository": "https://github.com/fn2ai/fn2-skill",
   "license": "MIT",
-  "keywords": ["fn2", "agents", "markets", "stocks", "scheduling", "automation", "research"],
+  "keywords": ["fn2", "agents", "markets", "stocks", "earnings", "transcripts", "financials", "scheduling", "automation", "research"],
   "skills": "./skills/",
   "interface": {
     "displayName": "FN2 AI Agents",
-    "shortDescription": "Launch and schedule FN2 AI market research agents",
-    "longDescription": "Drive the public fn2.ai API to start research agents, check their status and latest results, and schedule them on a cadence such as 'before the next market open'. Dependency-free Python 3 helper; connects via a browser device-authorization flow (fn2.ai/start) with a scoped, revocable credential.",
+    "shortDescription": "Read earnings data and run FN2 AI market research agents",
+    "longDescription": "Drive the public fn2.ai API. Read market data directly: reported earnings against analyst consensus, earnings-call transcripts and search, SEC-filing financials, prices, FRED series, and your account's saved notes. Or start research agents, check their status and latest results, and schedule them on a cadence such as 'before the next market open'. Dependency-free Python 3 helper; connects via a browser device-authorization flow (fn2.ai/start) with a scoped, revocable credential.",
     "developerName": "fn2",
     "category": "Productivity",
     "capabilities": ["Interactive", "Read", "Write"],
@@ -23,6 +23,7 @@
     "composerIcon": "./assets/icon.svg",
     "logo": "./assets/logo.svg",
     "defaultPrompt": [
+      "Use $fn2 to summarize Netflix's most recent earnings report and call.",
       "Use $fn2 to show the status of my fn2 agents.",
       "Use $fn2 to schedule a pre-market brief on my watchlist before the next market open."
     ],

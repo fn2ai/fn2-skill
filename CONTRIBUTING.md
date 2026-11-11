@@ -47,6 +47,7 @@ fn2 doctor
 | a new endpoint | `skills/fn2/scripts/fn2cli/api.py` (+ `references/api.md`) |
 | a new cadence phrase | `skills/fn2/scripts/fn2cli/schedule.py` (+ `references/scheduling.md`) |
 | how output looks | `skills/fn2/scripts/fn2cli/render.py` |
+| what a research command prints, and its caveats | `render.py` (+ `references/research.md`) |
 | what the assistant is told | `skills/fn2/SKILL.md` |
 | screenshots | `tools/screenshots/`, never hand-edit `docs/media/` |
 

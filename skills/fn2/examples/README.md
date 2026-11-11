@@ -68,8 +68,9 @@ adjusted definitions are comparable. See [the reconciliation worksheet](https://
 
 An FN2 account and available agent quota are required. The open-source client
 does not make the hosted service free or bypass plan/cadence restrictions.
-Browser device authorization requests `agents` and `models`; there is no
-credential to paste into a command, prompt, or repository:
+Browser device authorization requests `agents`, `models`, and read-only
+`research`; there is no credential to paste into a command, prompt, or
+repository:
 
 ```bash
 python3 "$FN2" auth login --no-wait

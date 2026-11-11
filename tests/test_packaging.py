@@ -6,6 +6,7 @@ import json
 import os
 import pathlib
 import re
+import shlex
 import subprocess
 import sys
 import tempfile
@@ -38,6 +39,7 @@ class PackagingTests(unittest.TestCase):
             "scripts/fn2",
             "scripts/fn2cli/cli.py",
             "references/api.md",
+            "references/research.md",
             "references/scheduling.md",
             "references/troubleshooting.md",
         ):
@@ -67,6 +69,79 @@ class PackagingTests(unittest.TestCase):
         self.assertIn("allowed-tools: Bash", frontmatter)
         self.assertNotRegex(frontmatter, r"(?m)^version:")
         self.assertNotRegex(frontmatter, r"(?m)^platforms:")
+
+    def test_skill_description_triggers_on_earnings_and_fits_the_limit(self):
+        """The description is what makes an assistant load the skill at all.
+
+        An earnings or financial-data question has to match it, and the Agent
+        Skills format caps a description at 1024 characters.
+        """
+        text = (SKILL / "SKILL.md").read_text(encoding="utf-8")
+        frontmatter = text.split("---", 2)[1]
+        block = re.search(r"description: >\n(.*?)\n\S", frontmatter, re.S)
+        self.assertIsNotNone(block)
+        description = " ".join(line.strip() for line in block.group(1).splitlines())
+        self.assertLessEqual(len(description), 1024, len(description))
+        lead = description[:300].lower()  # listings truncate: the trigger goes first
+        for phrase in ("earnings", "financial"):
+            self.assertIn(phrase, lead)
+        for phrase in ("consensus", "transcripts", "agents", "schedule"):
+            self.assertIn(phrase, description.lower())
+
+    def test_documented_research_commands_exist_and_parse(self):
+        """Every research command line the docs show must be one the CLI accepts.
+
+        `SKILL.md` is a prompt: an assistant runs these lines as written, so a
+        renamed flag here is a broken instruction, not a typo.
+        """
+        from fn2cli import cli
+
+        verbs = ("earnings", "calls", "transcript", "search", "financials",
+                 "price", "fred", "recall")
+        parser = cli.build_parser()
+        transcript_id = "0f8b2c1e-5d4a-4b7c-9e21-3a6f8d1c2b40"
+        sources = {
+            "SKILL.md": (SKILL / "SKILL.md", 'python3 "$FN2" '),
+            "references/research.md": (SKILL / "references" / "research.md",
+                                       'python3 "$FN2" '),
+            "README.md": (ROOT / "README.md", "fn2 "),
+        }
+        for name, (path, prefix) in sources.items():
+            seen = set()
+            for line in path.read_text(encoding="utf-8").splitlines():
+                if not line.startswith(prefix):
+                    continue
+                command = line[len(prefix):]
+                if not command.split() or command.split()[0] not in verbs:
+                    continue
+                # Placeholders such as `<id>` or `<row 1 id>` stand for a
+                # transcript id; a trailing `# …` is the doc's own comment.
+                command = re.sub(r"<[^>]*>", transcript_id, command)
+                argv = shlex.split(command, comments=True)
+                with self.subTest(doc=name, command=line.strip()):
+                    args = parser.parse_args(argv)  # SystemExit = a doc bug
+                    self.assertTrue(callable(args.func))
+                seen.add(argv[0])
+            self.assertTrue(seen, f"{name} shows no research command")
+            if name != "references/research.md":  # its table lists them all
+                self.assertEqual(seen, set(verbs),
+                                 f"{name} does not show every research command")
+        reference = sources["references/research.md"][0].read_text(encoding="utf-8")
+        for verb in verbs:
+            self.assertIn(f"| `{verb} ", reference.replace("[", " "), verb)
+
+    def test_references_document_every_research_route(self):
+        api_md = (SKILL / "references" / "api.md").read_text(encoding="utf-8")
+        for route in ("/research/earnings", "/research/transcripts",
+                      "/research/transcripts/read",
+                      "/research/transcripts/search", "/research/financials",
+                      "/research/prices", "/research/fred", "/research/recall"):
+            self.assertIn(f"`{route}`", api_md, route)
+        self.assertIn('"scopes": ["agents", "models", "research"]', api_md)
+        trouble = (SKILL / "references" / "troubleshooting.md").read_text(
+            encoding="utf-8")
+        self.assertIn("Missing scope: research", trouble)
+        self.assertIn("api_quota_exceeded", trouble)
 
     def test_marketplaces_reference_the_upstream_plugin(self):
         codex = _json(ROOT / ".agents" / "plugins" / "marketplace.json")

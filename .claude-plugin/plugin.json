@@ -1,8 +1,8 @@
 {
   "name": "fn2",
   "displayName": "FN2 AI Agents",
-  "version": "0.7.0",
-  "description": "Start, monitor, and schedule FN2 AI autonomous research agents for public markets from your terminal assistant.",
+  "version": "0.8.0",
+  "description": "Answer public-markets questions with FN2 AI data, read directly (earnings vs consensus, earnings-call transcripts, SEC financials, prices, FRED), and start, monitor, and schedule FN2 AI autonomous research agents from your terminal assistant.",
   "author": {
     "name": "fn2",
     "url": "https://fn2.ai"
@@ -10,6 +10,6 @@
   "homepage": "https://fn2.ai",
   "repository": "https://github.com/fn2ai/fn2-skill",
   "license": "MIT",
-  "keywords": ["fn2", "agents", "markets", "stocks", "scheduling", "automation", "research"],
+  "keywords": ["fn2", "agents", "markets", "stocks", "earnings", "transcripts", "financials", "scheduling", "automation", "research"],
   "skills": "./skills/"
 }

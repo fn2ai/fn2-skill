@@ -1,4 +1,4 @@
 interface:
   display_name: "fn2 Agents"
-  short_description: "Launch, monitor, and schedule fn2.ai market research agents"
-  default_prompt: "Use $fn2 to show the status of my fn2 agents and their latest results."
+  short_description: "Read earnings data and run fn2.ai market research agents"
+  default_prompt: "Use $fn2 to summarize Netflix's most recent earnings report and earnings call."
