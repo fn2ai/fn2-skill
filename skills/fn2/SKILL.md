@@ -136,7 +136,7 @@ python3 "$FN2" transcript NFLX --id <id>     # read that call in speaker order; 
 python3 "$FN2" transcript NFLX               # ...or the most recent call FN2 holds
 python3 "$FN2" calls NFLX                    # which calls FN2 holds: dates, ids, sizes
 python3 "$FN2" search "ad tier" --call <id>  # a topic inside one call; or --symbol NFLX [--after 2026-01-01] across calls
-python3 "$FN2" financials NFLX --quarterly   # revenue, margins, cash flow, debt from SEC filings (annual by default; --ttm)
+python3 "$FN2" financials NFLX --quarterly   # revenue, margins, cash flow, debt from SEC filings (annual by default)
 python3 "$FN2" price NFLX --range 1M         # quote; --range 1D|5D|1M|3M|6M|YTD|1Y|5Y|MAX adds history
 python3 "$FN2" fred DGS10                    # a FRED macro series; `fred` alone lists them
 python3 "$FN2" recall "holdings"             # notes the user's FN2 agents saved
@@ -182,10 +182,11 @@ Rules for the answer:
 - When something asked for is not in the output (company guidance, consensus
   for a metric, a transcript, a margin), say FN2's data does not have it
   instead of filling it in.
-- "The call does not discuss it" is a real answer. Some topics (buybacks, for
-  one) are often in the shareholder letter or a filing, which the direct data
-  does not hold. Say that, and offer an agent run, which can search filings
-  and news.
+- "The call does not discuss it" is a real answer. Say so; then check the
+  previous call (`search … --call <id from row [2]>`) or offer an agent run,
+  which can search filings and news. Some topics (buybacks, for one) are
+  often in the shareholder letter or a filing, which the direct data does not
+  hold.
 
 **Access and limits.** These commands need the `research` scope. If one fails
 with `Missing scope: research`, the user signed in before research reads

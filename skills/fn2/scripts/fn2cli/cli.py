@@ -1412,7 +1412,10 @@ def build_parser() -> argparse.ArgumentParser:
     variant.add_argument("--quarterly", dest="variant", action="store_const",
                          const="quarterly", help="single quarters")
     variant.add_argument("--ttm", dest="variant", action="store_const",
-                         const="ttm", help="trailing twelve months")
+                         const="ttm",
+                         help="trailing twelve months; rarely available (it "
+                              "needs four consecutive 10-Q quarters), so "
+                              "prefer --quarterly or --annual")
     p.set_defaults(variant="annual")
     p.add_argument("--limit", type=_int_between(1, 12), default=5, metavar="N",
                    help="periods to show (1-12, default 5)")

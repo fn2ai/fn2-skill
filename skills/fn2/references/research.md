@@ -19,7 +19,7 @@ same thing after `fn2 link`. Hints printed by the CLI use the `fn2` form.
 | `calls SYMBOL` (alias `transcripts`) | the earnings calls FN2 holds text for: date, fiscal label, size, transcript id | `--limit` 1-40 (8) |
 | `transcript SYMBOL` | one call's text in speaker order, one page per request. `SYMBOL` alone is the most recent call | `--id ID`, or `--year Y --quarter Q`; `--offset N` (0); `--max-chars` 1000-60000 (24000) |
 | `search QUERY…` | relevance-ranked speaker turns from call transcripts | `--symbol S`, `--after YYYY-MM-DD`, `--call ID`, `--limit` 1-20 (5) |
-| `financials SYMBOL` | income, margin, cash-flow, and debt figures from SEC filings, by period | `--annual` (default), `--quarterly`, `--ttm`; `--limit` 1-12 (5) |
+| `financials SYMBOL` | income, margin, cash-flow, and debt figures from SEC filings, by period | `--annual` (default), `--quarterly`; `--ttm` exists but is rarely available; `--limit` 1-12 (5) |
 | `price SYMBOL` (aliases `prices`, `quote`) | current quote; with `--range`, price bars | `--range` 1D, 5D, 1M, 3M, 6M, YTD, 1Y, 5Y, MAX |
 | `fred [SERIES_ID]` | observations for one FRED series; with no id, the list of series FN2 tracks | `--limit` 1-500 (60) |
 | `recall [QUERY…]` | notes the account's own FN2 agents saved | `--agent ID\|NAME`, `--tag T`, `--limit` 1-50 (12) |
@@ -128,10 +128,11 @@ Columns are periods, newest first; rows are line items.
   appears only after its 10-Q is filed, which can be days or weeks after the
   earnings release. Match a column to an `earnings` row by `period end` =
   `quarter ended`. No match means the filed figures are not available yet.
-- `--ttm` sums four consecutive quarterly filings. Because a fiscal fourth
-  quarter is filed on the 10-K, most companies never have four 10-Qs in a row,
-  and FN2 answers `not_found`; use `--annual` or `--quarterly` instead of
-  estimating a trailing figure.
+- Prefer `--quarterly` or `--annual`. `--ttm` sums four consecutive quarterly
+  filings, and because a fiscal fourth quarter is filed on the 10-K, most
+  companies never have four 10-Qs in a row: FN2 then answers `not_found` with
+  a sentence saying so. Relay that sentence; do not estimate a trailing
+  figure by adding quarters yourself.
 - A `withheld by FN2` line names a growth figure FN2 declined to compute and
   why, typically EPS growth across a stock split, where filed per-share
   figures are not on the same basis. Do not compute it from the EPS row.
@@ -184,14 +185,15 @@ data.
 `earnings SYMBOL --limit 1` for the transcript id, then
 `search "topic" --call <id>`; read the surrounding call with `transcript` if
 the hit needs context. If the hits are all `matched by meaning only` and none
-is actually about the topic, the answer is that the call does not discuss it.
+is actually about the topic, the answer is that the call does not discuss it:
+say so, then try the previous call's id, or offer an agent run.
 
 **How has a theme moved across calls?**
 `search "topic" --symbol SYMBOL --after YYYY-MM-DD --limit 10`, then order the
 hits by their call dates yourself; the ranking is by relevance.
 
 **Margin or cash-flow trend:** `financials SYMBOL --quarterly --limit 8`, or
-`--annual`.
+`--annual` (not `--ttm`, which is rarely available).
 
 **When is the next report?** The `next report:` line of `earnings SYMBOL`. Say
 that the date is a scheduled estimate.

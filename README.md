@@ -301,7 +301,7 @@ Any command that takes an agent takes an **id, an id prefix, or a name**.
 | `earnings <symbol>` | reported quarters vs analyst consensus, report dates, the next report |
 | `calls <symbol>` / `transcript <symbol> [--id …]` | list the earnings calls held / read one, a page at a time |
 | `search "<query>" [--symbol …] [--call …]` | search earnings-call text for what executives said |
-| `financials <symbol> [--quarterly\|--ttm]` | income, margin, cash-flow and debt figures from SEC filings |
+| `financials <symbol> [--quarterly]` | income, margin, cash-flow and debt figures from SEC filings (annual by default) |
 | `price <symbol> [--range 1M]` | current quote, plus price history |
 | `fred [<series>]` / `recall [<query>]` | a FRED macro series / notes your agents saved |
 | `start "<prompt>" [--when …] [--wait]` | create an agent: runs now, or on a schedule |

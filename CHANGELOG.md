@@ -27,8 +27,11 @@ user-visible surface.
   above and below the text. `search` marks every hit `matched your words` or
   `matched by meaning only`, and cautions when no hit contains the query
   words, so the nearest passage is not mistaken for a quote on a topic the
-  call never raised. A view too long for a terminal assistant's output limit
-  says so on its first line instead of being cut silently.
+  call never raised. `financials` prints FN2's reason when it withholds a
+  growth figure (EPS growth across a stock split) rather than a bare dash;
+  `--ttm` is kept but rarely available, so the docs point at `--quarterly` and
+  `--annual`. A view too long for a terminal assistant's output limit says so
+  on its first line instead of being cut silently.
 - **`fn2 auth login` requests the `research` scope.** `fn2 permissions`,
   `fn2 auth status` and `fn2 whoami` show whether a credential has it, and
   `whoami` shows the weekly research allowance beside the token quota.

@@ -794,6 +794,28 @@ class DataTests(_Sandbox):
         self.assertIn("data-quality flag, period ending 2026-09-30", out)
         self.assertIn("fiscal fourth quarter", out)
 
+    def test_ttm_is_not_steered_to_and_its_refusal_is_relayed_as_sent(self):
+        sentence = ("FN2 has no trailing-twelve-month figures for NFLX. A TTM "
+                    "period needs four consecutive quarterly (10-Q) filings, "
+                    "and a fiscal fourth quarter is reported on the annual "
+                    "10-K instead. Use the annual or quarterly variant.")
+        self.routes[V1 + "/research/financials"] = _problem(404, sentence,
+                                                            "not_found")
+        code, out, err = self.run_cli("financials", "NFLX", "--ttm")
+        self.assertEqual((code, out), (1, ""))
+        self.assertEqual(err.strip(), "error: HTTP 404: " + sentence)
+        self.assertEqual(self.last()[2]["variant"], "ttm")
+
+        code, out, _ = self.run_cli("financials", "--help")
+        self.assertIn("rarely available", " ".join(out.split()))
+        self.assertIn("prefer --quarterly or --annual", " ".join(out.split()))
+        root = pathlib.Path(__file__).resolve().parent.parent
+        skill = (root / "skills" / "fn2" / "SKILL.md").read_text(encoding="utf-8")
+        self.assertNotIn("--ttm", skill)  # the prompt no longer suggests it
+        reference = (root / "skills" / "fn2" / "references" /
+                     "research.md").read_text(encoding="utf-8")
+        self.assertIn("`--ttm` exists but is rarely available", reference)
+
     def test_financials_says_when_fn2_withheld_a_growth_figure(self):
         reason = ("implied diluted share count changed 9.98x year over year "
                   "(a stock split or similar); per-share figures are not "
